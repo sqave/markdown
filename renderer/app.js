@@ -1143,11 +1143,21 @@ rightBtns.forEach(btn => {
   });
 });
 
+// Keep window chrome proportions stable when using overlay titlebar.
+document.addEventListener('keydown', (e) => {
+  if (!e.metaKey || e.altKey || e.ctrlKey) return;
+  if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0') {
+    e.preventDefault();
+  }
+});
+
 // ===== Startup =====
 
 performance.mark('startup-begin');
 
 async function startup() {
+  await window.api.normalizeWebviewZoom();
+
   const restored = await restoreSession();
   if (!restored) {
     const tab = createTab(null, '');
