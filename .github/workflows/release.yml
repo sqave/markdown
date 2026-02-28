@@ -13,18 +13,16 @@ jobs:
           - target: aarch64-apple-darwin
             runner: macos-latest
             name: Apple Silicon (M1+)
-            suffix: Apple_Silicon
-            dmg_arch: aarch64
           - target: x86_64-apple-darwin
             runner: macos-latest
             name: Intel Mac
-            suffix: Intel
-            dmg_arch: x64
 
     name: build (${{ matrix.name }})
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: write
+    outputs:
+      releaseId: ${{ steps.tauri.outputs.releaseId }}
 
     steps:
       - uses: actions/checkout@v4
@@ -58,26 +56,28 @@ jobs:
           prerelease: false
           args: --target ${{ matrix.target }}
 
-      - name: Rename release assets
+  rename-assets:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Rename DMG assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          RELEASE_ID="${{ steps.tauri.outputs.releaseId }}"
-          ASSETS=$(gh api "repos/${{ github.repository }}/releases/${RELEASE_ID}/assets" --jq '.[] | "\(.id) \(.name)"')
-          echo "$ASSETS" | while read -r ASSET_ID ASSET_NAME; do
-            # Only rename this build's .dmg — skip other archs and updater assets
-            case "$ASSET_NAME" in *${{ matrix.dmg_arch }}*.dmg) ;; *) continue ;; esac
-            NEW_NAME="${ASSET_NAME/${{ matrix.dmg_arch }}/${{ matrix.suffix }}}"
+          RELEASE_ID="${{ needs.build.outputs.releaseId }}"
+          if [ -z "$RELEASE_ID" ]; then
+            echo "No release ID found, skipping rename"
+            exit 0
+          fi
+          gh api "repos/${GH_REPO}/releases/${RELEASE_ID}/assets" --jq '.[] | "\(.id) \(.name)"' | while read -r ASSET_ID ASSET_NAME; do
+            case "$ASSET_NAME" in *.dmg) ;; *) continue ;; esac
+            NEW_NAME="${ASSET_NAME/aarch64/Apple_Silicon}"
+            NEW_NAME="${NEW_NAME/x64/Intel}"
             if [ "$NEW_NAME" != "$ASSET_NAME" ]; then
-              # Delete stale asset with the target name if it exists (handles re-runs)
-              EXISTING_ID=$(echo "$ASSETS" | while read -r EID ENAME; do
-                [ "$ENAME" = "$NEW_NAME" ] && echo "$EID" && break
-              done)
-              if [ -n "$EXISTING_ID" ]; then
-                gh api --method DELETE "repos/${{ github.repository }}/releases/assets/${EXISTING_ID}" || true
-                echo "Deleted stale: $NEW_NAME"
-              fi
-              gh api --method PATCH "repos/${{ github.repository }}/releases/assets/${ASSET_ID}" -f name="$NEW_NAME"
+              gh api --method PATCH "repos/${GH_REPO}/releases/assets/${ASSET_ID}" -f name="$NEW_NAME"
               echo "Renamed: $ASSET_NAME -> $NEW_NAME"
             fi
           done
