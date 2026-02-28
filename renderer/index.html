@@ -7,9 +7,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="splash" id="splash">
-    <img src="../build/icon.png" class="splash-icon" alt="">
-  </div>
+  <div class="splash" id="splash">Initializing…</div>
   <div class="titlebar" data-tauri-drag-region>
     <div class="titlebar-tabs" id="tabBar" data-tauri-drag-region>
       <button class="tab-new-btn" id="tabNewBtn" title="New tab (⌘N)">
@@ -93,6 +91,8 @@
       <div class="diff-content" id="diffContent" style="display:none"></div>
     </div>
   </div>
+
+  <div class="drop-overlay" id="dropOverlay">Drop to open</div>
 
   <div class="update-bar" id="updateBar">
     <span class="update-msg" id="updateMsg"></span>

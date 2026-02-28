@@ -357,7 +357,7 @@ function scheduleDiffRender() {
     const { renderDiff, getDiffBase } = await import('./diff-view.js');
     const tab = tabs.find(t => t.id === activeTabId);
     if (!tab) return;
-    const baseText = await getDiffBase(tab);
+    const baseText = getDiffBase(tab);
     const currentText = view.state.doc.toString();
     const diffEl = document.getElementById('diffContent');
     renderDiff(currentText, baseText, diffEl);
@@ -440,13 +440,15 @@ function applyFontSize(size) {
     effects: fontSizeCompartment.reconfigure(makeFontSizeTheme(currentFontSize)),
   });
   previewEl.style.fontSize = (currentFontSize + 1) + 'px';
+  document.getElementById('diffContent').style.fontSize = (currentFontSize + 1) + 'px';
 }
 
 document.getElementById('fontDecrease').addEventListener('click', () => applyFontSize(currentFontSize - 1));
 document.getElementById('fontIncrease').addEventListener('click', () => applyFontSize(currentFontSize + 1));
 
-// Set initial preview font size
+// Set initial preview / diff font size
 previewEl.style.fontSize = (currentFontSize + 1) + 'px';
+document.getElementById('diffContent').style.fontSize = (currentFontSize + 1) + 'px';
 
 // ===== Copy Button =====
 
@@ -672,7 +674,11 @@ async function handleOpen() {
     isDirty = false;
     window.api.setDocumentEdited(false);
     updateTitle();
-    renderPreviewImmediate(result.content);
+    if (layoutMode === 'split' && rightPaneContent === 'diff') {
+      scheduleDiffRender();
+    } else {
+      renderPreviewImmediate(result.content);
+    }
     renderTabBar();
     scheduleSessionSave();
     return;
@@ -778,6 +784,7 @@ function saveSession() {
       isDirty: t.isDirty,
       scrollTop: t.scrollTop,
       selectionMain: t.selectionMain,
+      lastSavedContent: t.lastSavedContent || '',
     })),
     activeTabId,
     nextTabId,
@@ -808,7 +815,10 @@ async function restoreSession() {
 
   if (!data || !data.tabs || data.tabs.length === 0) return false;
 
-  tabs = data.tabs;
+  tabs = data.tabs.map(t => ({
+    ...t,
+    lastSavedContent: t.lastSavedContent ?? t.content ?? '',
+  }));
   nextTabId = data.nextTabId || (Math.max(...tabs.map(t => t.id)) + 1);
 
   const targetId = data.activeTabId || tabs[0].id;
@@ -944,6 +954,36 @@ window.api.onUpdateNotAvailable(() => {
   setTimeout(hideUpdateBar, 3000);
 });
 
+// ===== File Drop Overlay =====
+
+const dropOverlay = document.getElementById('dropOverlay');
+let dragCounter = 0;
+
+document.addEventListener('dragover', (e) => {
+  e.preventDefault();
+});
+
+document.addEventListener('dragenter', (e) => {
+  e.preventDefault();
+  dragCounter++;
+  dropOverlay.classList.add('visible');
+});
+
+document.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragCounter = 0;
+    dropOverlay.classList.remove('visible');
+  }
+});
+
+document.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragCounter = 0;
+  dropOverlay.classList.remove('visible');
+});
+
 // ===== Divider Drag =====
 
 const divider = document.getElementById('divider');
@@ -1038,7 +1078,7 @@ async function applyView(layout, rightPane) {
       const { renderDiff, getDiffBase } = await import('./diff-view.js');
       const tab = tabs.find(t => t.id === activeTabId);
       if (tab) {
-        const baseText = await getDiffBase(tab);
+        const baseText = getDiffBase(tab);
         const currentText = view.state.doc.toString();
         renderDiff(currentText, baseText, diffContent);
       }

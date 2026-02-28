@@ -5,7 +5,8 @@ use std::sync::Mutex;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder},
     window::Color,
-    AppHandle, Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, DragDropEvent, Emitter, Manager, RunEvent, State, WebviewUrl,
+    WebviewWindowBuilder, WindowEvent,
 };
 
 // -- App state --
@@ -461,6 +462,30 @@ pub fn run() {
         .run(|app, event| {
             #[allow(clippy::single_match)]
             match &event {
+                RunEvent::WindowEvent {
+                    event: WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }),
+                    ..
+                } => {
+                    for path in paths {
+                        let ext = path
+                            .extension()
+                            .and_then(|e| e.to_str())
+                            .unwrap_or("");
+                        if !matches!(ext, "md" | "markdown" | "txt") {
+                            continue;
+                        }
+                        let path_str = path.to_string_lossy().to_string();
+                        if let Ok(content) = fs::read_to_string(&path_str) {
+                            let _ = app.emit(
+                                "file-opened",
+                                FileResult {
+                                    file_path: path_str,
+                                    content,
+                                },
+                            );
+                        }
+                    }
+                }
                 RunEvent::Opened { urls } => {
                     // Handle file open from OS (double-click .md file or drag to dock)
                     for url in urls {

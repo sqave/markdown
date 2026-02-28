@@ -5,15 +5,9 @@ import { computeUnifiedDiff } from './diff-engine.js';
 
 /**
  * Get the base content to diff against.
- * Tries git HEAD first, falls back to lastSavedContent.
+ * Uses lastSavedContent — shows changes since open/save, not git history.
  */
-export async function getDiffBase(tab) {
-  if (tab.filePath && window.api.gitShow) {
-    try {
-      const gitContent = await window.api.gitShow(tab.filePath);
-      if (gitContent != null) return gitContent;
-    } catch (_) {}
-  }
+export function getDiffBase(tab) {
   return tab.lastSavedContent || '';
 }
 

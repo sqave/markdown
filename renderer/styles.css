@@ -672,7 +672,6 @@ html.fullscreen .titlebar {
   margin: 0 auto;
   padding: 16px 24px 80px;
   font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-  font-size: 12px;
   line-height: 1.55;
   transition: opacity 150ms ease;
 }
@@ -851,6 +850,35 @@ html.fullscreen .titlebar {
   background: rgba(255, 255, 255, 0.15);
 }
 
+/* ===== Drop Overlay ===== */
+
+.drop-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(20, 20, 20, 0.55);
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.drop-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 2px dashed rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.drop-overlay.visible {
+  display: flex;
+}
+
 /* ===== Splash Screen ===== */
 
 .splash {
@@ -862,14 +890,12 @@ html.fullscreen .titlebar {
   align-items: center;
   justify-content: center;
   transition: opacity 300ms ease;
+  font-size: 13px;
+  color: #555;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }
 .splash.hidden {
   opacity: 0;
   pointer-events: none;
-}
-.splash-icon {
-  width: 96px;
-  height: 96px;
-  border-radius: 20px;
 }
 

@@ -65,6 +65,10 @@ npm run build     # production .dmg
 | Decrease font | `Cmd+-` |
 | Reset font | `Cmd+0` |
 
+## Plugins
+
+Plugin support is a work in progress. The backend infrastructure (VSIX extraction, sandboxed JS runtime, event bus) is in place, but there is no user-facing UI for installing or managing plugins yet.
+
 ## License
 
 MIT
