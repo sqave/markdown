@@ -12,9 +12,11 @@ jobs:
           - target: aarch64-apple-darwin
             runner: macos-latest
             name: Apple Silicon (M1+)
+            suffix: Apple_Silicon
           - target: x86_64-apple-darwin
             runner: macos-latest
             name: Intel Mac
+            suffix: Intel
 
     name: build (${{ matrix.name }})
     runs-on: ${{ matrix.runner }}
@@ -40,6 +42,7 @@ jobs:
       - run: npm install
 
       - uses: tauri-apps/tauri-action@v0
+        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -48,6 +51,21 @@ jobs:
           tagName: v__VERSION__
           releaseName: CogMD v__VERSION__
           releaseBody: "See the assets to download this version and install."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
+
+      - name: Rename release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_ID="${{ steps.tauri.outputs.releaseId }}"
+          ASSETS=$(gh api "repos/${{ github.repository }}/releases/${RELEASE_ID}/assets" --jq '.[] | "\(.id) \(.name)"')
+          echo "$ASSETS" | while read -r ASSET_ID ASSET_NAME; do
+            NEW_NAME="${ASSET_NAME/aarch64/Apple_Silicon}"
+            NEW_NAME="${NEW_NAME/x64/${{ matrix.suffix }}}"
+            if [ "$NEW_NAME" != "$ASSET_NAME" ]; then
+              gh api --method PATCH "repos/${{ github.repository }}/releases/assets/${ASSET_ID}" -f name="$NEW_NAME"
+              echo "Renamed: $ASSET_NAME -> $NEW_NAME"
+            fi
+          done
