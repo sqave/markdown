@@ -974,8 +974,9 @@ window.api.onUpdateDownloaded(() => {
   });
 });
 
-window.api.onUpdateError(() => {
-  showUpdateBar('Update check failed', null, null);
+window.api.onUpdateError((message) => {
+  const reason = message ? `: ${message}` : '';
+  showUpdateBar(`Update check failed${reason}`, null, null);
   setTimeout(hideUpdateBar, 5000);
 });
 

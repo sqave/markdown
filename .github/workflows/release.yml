@@ -62,16 +62,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - name: Rename DMG assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          RELEASE_ID="${{ needs.build.outputs.releaseId }}"
-          if [ -z "$RELEASE_ID" ]; then
-            echo "No release ID found, skipping rename"
-            exit 0
-          fi
+          TAG_NAME="v$(jq -r '.version' src-tauri/tauri.conf.json)"
+          RELEASE_ID=$(gh api "repos/${GH_REPO}/releases/tags/${TAG_NAME}" --jq '.id')
+
           gh api "repos/${GH_REPO}/releases/${RELEASE_ID}/assets" --jq '.[] | "\(.id) \(.name)"' | while read -r ASSET_ID ASSET_NAME; do
             case "$ASSET_NAME" in *.dmg) ;; *) continue ;; esac
             NEW_NAME="${ASSET_NAME/aarch64/Apple_Silicon}"
@@ -81,3 +81,25 @@ jobs:
               echo "Renamed: $ASSET_NAME -> $NEW_NAME"
             fi
           done
+
+      - name: Validate updater manifest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG_NAME="v$(jq -r '.version' src-tauri/tauri.conf.json)"
+          RELEASE_ID=$(gh api "repos/${GH_REPO}/releases/tags/${TAG_NAME}" --jq '.id')
+          gh api "repos/${GH_REPO}/releases/${RELEASE_ID}/assets" --jq '.[] | "\(.id) \(.name)"' > assets.txt
+
+          LATEST_JSON_ASSET_ID=$(awk '$2 == "latest.json" { print $1; exit }' assets.txt)
+          if [ -z "$LATEST_JSON_ASSET_ID" ]; then
+            echo "latest.json is missing from release assets"
+            exit 1
+          fi
+
+          gh api "repos/${GH_REPO}/releases/assets/${LATEST_JSON_ASSET_ID}" -H "Accept: application/octet-stream" > latest.json
+
+          jq -e '.platforms["darwin-aarch64"] and .platforms["darwin-x86_64"]' latest.json > /dev/null
+          jq -e '.platforms["darwin-aarch64"].signature and .platforms["darwin-x86_64"].signature' latest.json > /dev/null
+
+          echo "Updater manifest contains both macOS targets"

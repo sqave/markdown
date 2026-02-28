@@ -45,7 +45,8 @@ window.api = {
     } catch (e) {
       console.error('Update check failed:', e);
       if (manual) {
-        window.dispatchEvent(new CustomEvent('cogmd-update-error'));
+        const message = e instanceof Error ? e.message : String(e);
+        window.dispatchEvent(new CustomEvent('cogmd-update-error', { detail: { message } }));
       }
     }
   },
@@ -63,7 +64,7 @@ window.api = {
   },
 
   onUpdateError: (callback) => {
-    window.addEventListener('cogmd-update-error', () => callback());
+    window.addEventListener('cogmd-update-error', (e) => callback(e.detail?.message));
   },
 
   onUpdateNone: (callback) => {
