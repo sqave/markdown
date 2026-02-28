@@ -8,6 +8,75 @@ use tauri::{
     AppHandle, Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder,
 };
 
+// Traffic light (window controls) position constants
+const TRAFFIC_LIGHT_X: f64 = 16.0;
+const TRAFFIC_LIGHT_Y: f64 = 15.0;
+
+/// Reposition macOS traffic light buttons to our custom offset.
+/// Called after set_title() which can reset them to the system default.
+#[cfg(target_os = "macos")]
+fn reposition_traffic_lights(window: &tauri::WebviewWindow) {
+    use objc2::runtime::AnyObject;
+
+    let ns_window_ptr = match window.ns_window() {
+        Ok(ptr) => ptr as *const AnyObject,
+        Err(_) => return,
+    };
+
+    unsafe {
+        let ns_window = &*ns_window_ptr;
+
+        // Get the three standard window buttons (close=0, miniaturize=1, zoom=2)
+        let close: *const AnyObject =
+            objc2::msg_send![ns_window, standardWindowButton: 0usize];
+        let mini: *const AnyObject =
+            objc2::msg_send![ns_window, standardWindowButton: 1usize];
+        let zoom: *const AnyObject =
+            objc2::msg_send![ns_window, standardWindowButton: 2usize];
+
+        if close.is_null() || mini.is_null() || zoom.is_null() {
+            return;
+        }
+
+        // Get title bar container view: close -> superview -> superview
+        let close_super: *const AnyObject = objc2::msg_send![&*close, superview];
+        if close_super.is_null() {
+            return;
+        }
+        let title_bar_container: *const AnyObject = objc2::msg_send![&*close_super, superview];
+        if title_bar_container.is_null() {
+            return;
+        }
+
+        // NSRect is { origin: { x, y }, size: { width, height } } = 4 x f64
+        let close_frame: [f64; 4] = objc2::msg_send![&*close, frame];
+        let mini_frame: [f64; 4] = objc2::msg_send![&*mini, frame];
+        let window_frame: [f64; 4] = objc2::msg_send![ns_window, frame];
+        let tb_frame: [f64; 4] = objc2::msg_send![&*title_bar_container, frame];
+
+        // Resize title bar container to fit the new Y offset
+        let title_bar_height = close_frame[3] + TRAFFIC_LIGHT_Y; // button height + y inset
+        let new_tb_frame: [f64; 4] = [
+            tb_frame[0],
+            window_frame[3] - title_bar_height, // origin.y = window height - bar height
+            tb_frame[2],
+            title_bar_height,
+        ];
+        let _: () = objc2::msg_send![&*title_bar_container, setFrame: new_tb_frame];
+
+        // Reposition each button horizontally
+        let space_between = mini_frame[0] - close_frame[0];
+        for (i, button) in [close, mini, zoom].iter().enumerate() {
+            let btn_frame: [f64; 4] = objc2::msg_send![&**button, frame];
+            let origin: [f64; 2] = [
+                TRAFFIC_LIGHT_X + (i as f64 * space_between),
+                btn_frame[1],
+            ];
+            let _: () = objc2::msg_send![&**button, setFrameOrigin: origin];
+        }
+    }
+}
+
 // -- App state --
 
 struct AppState {
@@ -85,6 +154,8 @@ async fn save_file_as(app: AppHandle, content: String) -> Result<Option<String>,
 fn set_window_title(app: AppHandle, title: String) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_title(&title);
+        #[cfg(target_os = "macos")]
+        reposition_traffic_lights(&window);
     }
 }
 
@@ -450,7 +521,7 @@ pub fn run() {
                 .min_inner_size(600.0, 400.0)
                 .title_bar_style(tauri::TitleBarStyle::Overlay)
                 .hidden_title(true)
-                .traffic_light_position(tauri::Position::Logical(tauri::LogicalPosition::new(16.0, 15.0)))
+                .traffic_light_position(tauri::Position::Logical(tauri::LogicalPosition::new(TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y)))
                 .background_color(Color(20, 20, 20, 255))
                 .build()?;
 
