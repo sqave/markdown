@@ -71,8 +71,9 @@ html, body {
   height: 38px;
   display: flex;
   align-items: center;
-  padding: 0 16px 0 84px;
+  padding: 0 8px 0 84px;
   -webkit-app-region: drag;
+  user-select: none;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-subtle);
   position: relative;
@@ -274,6 +275,18 @@ html.fullscreen .titlebar {
   box-shadow: 0 1px 2px var(--shadow);
 }
 
+.mode-btn.dimmed {
+  opacity: 0.4;
+}
+
+.mode-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
 /* ===== Tabs (Chrome-style) ===== */
 
 .tab {
@@ -396,6 +409,10 @@ html.fullscreen .titlebar {
   height: calc(100% - 38px);
 }
 
+.container.animate-columns {
+  transition: grid-template-columns 200ms ease;
+}
+
 .editor-pane {
   overflow: hidden;
   background: var(--bg-editor);
@@ -421,6 +438,7 @@ html.fullscreen .titlebar {
   max-width: 720px;
   margin: 0 auto;
   padding: 24px 40px 80px;
+  overflow: hidden;
 }
 
 /* ===== Divider ===== */
@@ -647,16 +665,112 @@ html.fullscreen .titlebar {
   accent-color: var(--accent);
 }
 
-/* ===== Diff Pane ===== */
+/* ===== Compact Diff View ===== */
 
-.diff-pane {
-  overflow: hidden;
-  background: var(--bg-editor);
-  grid-column: 1 / -1;
+.diff-content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 24px 80px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  line-height: 1.55;
+  transition: opacity 150ms ease;
 }
 
-.diff-pane .cm-mergeView {
+.preview-content {
+  transition: opacity 150ms ease;
+}
+
+.diff-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 100%;
+  color: var(--text-muted);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  font-size: 14px;
+}
+
+.diff-hunk-header {
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 6px 8px;
+  background: var(--bg-code);
+  border-radius: 4px;
+  margin: 8px 0 4px;
+}
+
+.diff-hunk {
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.diff-line {
+  display: flex;
+  align-items: baseline;
+  min-height: 22px;
+}
+
+.diff-line-num {
+  width: 40px;
+  flex-shrink: 0;
+  text-align: right;
+  padding: 0 6px;
+  color: var(--text-muted);
+  user-select: none;
+  font-size: 11px;
+}
+
+.diff-line-prefix {
+  width: 16px;
+  flex-shrink: 0;
+  text-align: center;
+  user-select: none;
+  font-weight: 600;
+}
+
+.diff-line-text {
+  flex: 1;
+  padding-right: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diff-add {
+  background: rgba(67, 164, 114, 0.08);
+}
+
+.diff-add .diff-line-prefix {
+  color: #43A472;
+}
+
+.diff-remove {
+  background: rgba(255, 100, 100, 0.08);
+}
+
+.diff-remove .diff-line-prefix {
+  color: #e05050;
+}
+
+.diff-context {
+  background: transparent;
+}
+
+[data-theme="dark"] .diff-add {
+  background: rgba(67, 164, 114, 0.1);
+}
+
+[data-theme="dark"] .diff-remove {
+  background: rgba(255, 100, 100, 0.1);
+}
+
+.diff-collapse {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 4px 0;
+  letter-spacing: 0.05em;
 }
 
 /* ===== Shiki code block overrides ===== */
@@ -736,6 +850,35 @@ html.fullscreen .titlebar {
   background: rgba(255, 255, 255, 0.15);
 }
 
+/* ===== Drop Overlay ===== */
+
+.drop-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(20, 20, 20, 0.55);
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.drop-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 2px dashed rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.drop-overlay.visible {
+  display: flex;
+}
+
 /* ===== Splash Screen ===== */
 
 .splash {
@@ -747,14 +890,12 @@ html.fullscreen .titlebar {
   align-items: center;
   justify-content: center;
   transition: opacity 300ms ease;
+  font-size: 13px;
+  color: #555;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }
 .splash.hidden {
   opacity: 0;
   pointer-events: none;
-}
-.splash-icon {
-  width: 96px;
-  height: 96px;
-  border-radius: 20px;
 }
 

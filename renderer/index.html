@@ -7,9 +7,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="splash" id="splash">
-    <img src="../build/icon.png" class="splash-icon" alt="">
-  </div>
+  <div class="splash" id="splash">Initializing…</div>
   <div class="titlebar" data-tauri-drag-region>
     <div class="titlebar-tabs" id="tabBar" data-tauri-drag-region>
       <button class="tab-new-btn" id="tabNewBtn" title="New tab (⌘N)">
@@ -60,22 +58,23 @@
       </div>
 
       <div class="mode-toggle">
-        <button class="mode-btn" data-mode="editor" title="Editor only (⌘1)">
+        <button class="mode-btn active" data-layout="single" title="Editor only (⌘1)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
           </svg>
         </button>
-        <button class="mode-btn active" data-mode="split" title="Split view (⌘2)">
+        <button class="mode-btn" data-layout="split" title="Split view (⌘2)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/>
           </svg>
         </button>
-        <button class="mode-btn" data-mode="preview" title="Preview only (⌘3)">
+        <span class="mode-divider"></span>
+        <button class="mode-btn" data-right="preview" title="Preview (⌘3)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
           </svg>
         </button>
-        <button class="mode-btn" data-mode="diff" title="Diff view (⌘4)">
+        <button class="mode-btn" data-right="diff" title="Changes (⌘4)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 6h7"/><path d="M4 10h7"/><path d="M4 14h4"/><path d="M15 6h5"/><path d="M15 10h5"/><path d="M15 14h5"/><line x1="12" y1="3" x2="12" y2="21"/>
           </svg>
@@ -89,9 +88,11 @@
     <div class="divider" id="divider"></div>
     <div class="preview-pane">
       <div class="preview-content" id="previewContent"></div>
+      <div class="diff-content" id="diffContent" style="display:none"></div>
     </div>
-    <div class="diff-pane" id="diffPane" style="display:none"></div>
   </div>
+
+  <div class="drop-overlay" id="dropOverlay">Drop to open</div>
 
   <div class="update-bar" id="updateBar">
     <span class="update-msg" id="updateMsg"></span>
