@@ -10,6 +10,22 @@
 
 ## Release Process
 
-- Bump `version` in both `package.json` and `src-tauri/tauri.conf.json` before merging to `main`
-- GitHub Actions auto-publishes a release on push to `main` (builds dual-arch .dmg via `tauri-action`)
+Bump version in all three files, commit, push branch, merge to `main`. CI handles the rest.
+
+```sh
+# 1. Bump version in all three files (keep them in sync):
+#    - package.json
+#    - src-tauri/tauri.conf.json
+#    - src-tauri/Cargo.toml
+
+# 2. Commit and push to a feature branch
+git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+git commit -m "Bump to vX.Y.Z"
+git push origin <branch>
+
+# 3. Merge to main (user does this manually) — CI auto-builds and publishes the release
+```
+
+- GitHub Actions (`.github/workflows/release.yml`) triggers on push to `main`
+- Builds dual-arch `.dmg` + updater assets (`.app.tar.gz`, `.sig`, `latest.json`) via `tauri-action`
 - The app checks for updates via `tauri-plugin-updater` against GitHub Releases

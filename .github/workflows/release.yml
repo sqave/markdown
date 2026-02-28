@@ -62,6 +62,8 @@ jobs:
           RELEASE_ID="${{ steps.tauri.outputs.releaseId }}"
           ASSETS=$(gh api "repos/${{ github.repository }}/releases/${RELEASE_ID}/assets" --jq '.[] | "\(.id) \(.name)"')
           echo "$ASSETS" | while read -r ASSET_ID ASSET_NAME; do
+            # Only rename .dmg files — updater assets must keep original names for latest.json URLs
+            case "$ASSET_NAME" in *.dmg) ;; *) continue ;; esac
             NEW_NAME="${ASSET_NAME/aarch64/Apple_Silicon}"
             NEW_NAME="${NEW_NAME/x64/${{ matrix.suffix }}}"
             if [ "$NEW_NAME" != "$ASSET_NAME" ]; then
