@@ -450,7 +450,7 @@ pub fn run() {
                 .min_inner_size(600.0, 400.0)
                 .title_bar_style(tauri::TitleBarStyle::Overlay)
                 .hidden_title(true)
-                .traffic_light_position(tauri::Position::Logical(tauri::LogicalPosition::new(16.0, 24.0)))
+                .traffic_light_position(tauri::Position::Logical(tauri::LogicalPosition::new(16.0, 15.0)))
                 .background_color(Color(20, 20, 20, 255))
                 .build()?;
 
