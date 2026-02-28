@@ -72,12 +72,20 @@ jobs:
           TAG_NAME="v$(jq -r '.version' src-tauri/tauri.conf.json)"
           RELEASE_ID=$(gh api "repos/${GH_REPO}/releases/tags/${TAG_NAME}" --jq '.id')
 
-          gh api "repos/${GH_REPO}/releases/${RELEASE_ID}/assets" --jq '.[] | "\(.id) \(.name)"' | while read -r ASSET_ID ASSET_NAME; do
+          gh api "repos/${GH_REPO}/releases/${RELEASE_ID}/assets" --jq '.[] | "\(.id) \(.name)"' > assets.txt
+          cat assets.txt | while read -r ASSET_ID ASSET_NAME; do
             case "$ASSET_NAME" in *.dmg) ;; *) continue ;; esac
             NEW_NAME="${ASSET_NAME/aarch64/Apple_Silicon}"
             NEW_NAME="${NEW_NAME/x64/Intel}"
             if [ "$NEW_NAME" != "$ASSET_NAME" ]; then
+              EXISTING_ID=$(awk -v n="$NEW_NAME" '$2 == n { print $1; exit }' assets.txt)
+              if [ -n "$EXISTING_ID" ] && [ "$EXISTING_ID" != "$ASSET_ID" ]; then
+                gh api --method DELETE "repos/${GH_REPO}/releases/assets/${EXISTING_ID}"
+                grep -v "^${EXISTING_ID} " assets.txt > assets.next && mv assets.next assets.txt
+                echo "Deleted conflicting asset: $NEW_NAME"
+              fi
               gh api --method PATCH "repos/${GH_REPO}/releases/assets/${ASSET_ID}" -f name="$NEW_NAME"
+              awk -v id="$ASSET_ID" -v old="$ASSET_NAME" -v new="$NEW_NAME" 'BEGIN { OFS = " " } $1 == id && $2 == old { $2 = new } { print }' assets.txt > assets.next && mv assets.next assets.txt
               echo "Renamed: $ASSET_NAME -> $NEW_NAME"
             fi
           done
