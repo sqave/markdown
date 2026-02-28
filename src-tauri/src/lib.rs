@@ -69,7 +69,7 @@ async fn save_file_as(app: AppHandle, content: String) -> Result<Option<String>,
         .dialog()
         .file()
         .add_filter("All Files", &["*"])
-        .set_file_name("untitled.txt")
+        .set_file_name("untitled.md")
         .blocking_save_file();
 
     match file_path {
