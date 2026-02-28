@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 
@@ -24,6 +25,13 @@ function createWindow() {
   });
 
   mainWindow.loadFile('renderer/index.html');
+
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow.webContents.send('fullscreen-changed', true);
+  });
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow.webContents.send('fullscreen-changed', false);
+  });
 }
 
 // --- File I/O IPC ---
@@ -124,6 +132,11 @@ const menuTemplate = [
         accelerator: 'CmdOrCtrl+Shift+[',
         click: () => sendMenuAction('prevTab'),
       },
+      { type: 'separator' },
+      {
+        label: 'Check for Updates…',
+        click: () => sendMenuAction('checkForUpdates'),
+      },
     ],
   },
   {
@@ -200,14 +213,40 @@ const menuTemplate = [
   },
 ];
 
+// --- Auto-updater ---
+
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+function setupAutoUpdater() {
+  autoUpdater.on('update-available', () => {
+    if (mainWindow) mainWindow.webContents.send('update-available');
+  });
+  autoUpdater.on('update-not-available', () => {
+    if (mainWindow) mainWindow.webContents.send('update-not-available');
+  });
+  autoUpdater.on('update-downloaded', () => {
+    if (mainWindow) mainWindow.webContents.send('update-downloaded');
+  });
+}
+
+ipcMain.handle('check-for-updates', () => {
+  autoUpdater.checkForUpdatesAndNotify();
+});
+
+ipcMain.on('install-update', () => {
+  autoUpdater.quitAndInstall();
+});
+
 // --- App lifecycle ---
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
   createWindow();
+  setupAutoUpdater();
 
-  if (process.platform === 'darwin' && fs.existsSync(iconPath)) {
-    app.dock.setIcon(nativeImage.createFromPath(iconPath));
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify();
   }
 
   app.on('activate', () => {

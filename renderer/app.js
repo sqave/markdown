@@ -134,8 +134,10 @@ function getThemeExtensions(isDark) {
 
 let currentFilePath = null;
 let isDirty = false;
-let currentTheme = localStorage.getItem('cogmd-theme') ||
-  (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+let themeMode = localStorage.getItem('cogmd-theme') || 'auto';
+let currentTheme = themeMode === 'auto'
+  ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+  : themeMode;
 let currentViewMode = localStorage.getItem('cogmd-view-mode') || 'split';
 
 // ===== Tab Model =====
@@ -210,20 +212,34 @@ function renderPreview(text) {
 
 // ===== Theme =====
 
-function applyTheme(theme) {
-  currentTheme = theme;
-  const isDark = theme === 'dark';
-  document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('cogmd-theme', theme);
+const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+function resolveTheme(mode) {
+  if (mode === 'auto') return systemDarkQuery.matches ? 'dark' : 'light';
+  return mode;
+}
+
+function applyTheme(mode) {
+  themeMode = mode;
+  currentTheme = resolveTheme(mode);
+  const isDark = currentTheme === 'dark';
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  document.documentElement.setAttribute('data-theme-mode', mode);
+  localStorage.setItem('cogmd-theme', mode);
   view.dispatch({
     effects: themeCompartment.reconfigure(getThemeExtensions(isDark)),
   });
 }
 
-applyTheme(currentTheme);
+applyTheme(themeMode);
+
+systemDarkQuery.addEventListener('change', () => {
+  if (themeMode === 'auto') applyTheme('auto');
+});
 
 themeToggle.addEventListener('click', () => {
-  applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+  const next = { auto: 'light', light: 'dark', dark: 'auto' };
+  applyTheme(next[themeMode]);
 });
 
 // ===== Font Size =====
@@ -594,9 +610,11 @@ window.api.onMenuAction((action) => {
     case 'closeTab': closeTab(activeTabId); break;
     case 'nextTab': cycleTab(1); break;
     case 'prevTab': cycleTab(-1); break;
-    case 'toggleTheme':
-      applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+    case 'toggleTheme': {
+      const next = { auto: 'light', light: 'dark', dark: 'auto' };
+      applyTheme(next[themeMode]);
       break;
+    }
     case 'viewEditor': applyViewMode('editor'); break;
     case 'viewSplit': applyViewMode('split'); break;
     case 'viewPreview': applyViewMode('preview'); break;
@@ -604,6 +622,7 @@ window.api.onMenuAction((action) => {
     case 'fontDecrease': applyFontSize(currentFontSize - 1); break;
     case 'fontReset': applyFontSize(FONT_SIZE_DEFAULT); break;
     case 'resetSettings': resetAllSettings(); break;
+    case 'checkForUpdates': window.api.checkForUpdates(); break;
   }
 });
 
@@ -616,6 +635,24 @@ window.api.onFileOpened(({ filePath, content }) => {
   snapshotCurrentTab();
   const tab = createTab(filePath, content);
   activateTab(tab.id);
+});
+
+// ===== Fullscreen =====
+
+window.api.onFullscreenChanged((isFullscreen) => {
+  document.documentElement.classList.toggle('fullscreen', isFullscreen);
+});
+
+// ===== Auto-Update =====
+
+window.api.onUpdateNotAvailable(() => {
+  alert('You\'re up to date!');
+});
+
+window.api.onUpdateDownloaded(() => {
+  if (confirm('A new update is ready. Restart now to install?')) {
+    window.api.installUpdate();
+  }
 });
 
 // ===== Divider Drag =====
