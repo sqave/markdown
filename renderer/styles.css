@@ -71,7 +71,7 @@ html, body {
   height: 38px;
   display: flex;
   align-items: flex-end;
-  padding: 0 12px 0 78px;
+  padding: 0 16px 0 84px;
   -webkit-app-region: drag;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-subtle);
@@ -81,7 +81,7 @@ html, body {
 }
 
 html.fullscreen .titlebar {
-  padding-left: 12px;
+  padding-left: 16px;
 }
 
 .titlebar-tabs {
@@ -103,7 +103,7 @@ html.fullscreen .titlebar {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-bottom: 5px;
+  align-self: center;
   margin-left: 8px;
 }
 
