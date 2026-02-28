@@ -228,10 +228,17 @@ function setupAutoUpdater() {
   autoUpdater.on('update-downloaded', () => {
     if (mainWindow) mainWindow.webContents.send('update-downloaded');
   });
+  autoUpdater.on('error', () => {
+    // Silently ignore — manual checks send update-not-available via catch
+  });
 }
 
-ipcMain.handle('check-for-updates', () => {
-  autoUpdater.checkForUpdatesAndNotify();
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    await autoUpdater.checkForUpdatesAndNotify();
+  } catch (_) {
+    if (mainWindow) mainWindow.webContents.send('update-not-available');
+  }
 });
 
 ipcMain.on('install-update', () => {
