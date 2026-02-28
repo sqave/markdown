@@ -2,11 +2,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { check } from '@tauri-apps/plugin-updater';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { relaunch } from '@tauri-apps/plugin-process';
 
 const appWindow = getCurrentWebviewWindow();
+const appWebview = getCurrentWebview();
 
 // Track update state for the notification bar
 let pendingUpdate = null;
@@ -69,6 +71,10 @@ window.api = {
 
   onUpdateNone: (callback) => {
     window.addEventListener('cogmd-update-none', () => callback());
+  },
+
+  normalizeWebviewZoom: async () => {
+    await appWebview.setZoom(1);
   },
 
   showWindow: () => appWindow.show(),

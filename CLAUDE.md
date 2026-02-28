@@ -16,20 +16,28 @@
 
 ## Release Process
 
-Bump version in all three files, commit, push branch, merge to `main`. CI handles the rest.
+Follow this routine exactly so `develop` and `main` stay in sync:
 
 ```sh
-# 1. Bump version in all three files (keep them in sync):
+# 1) On develop, commit all current release-ready work
+git checkout develop
+git add -A
+git commit -m "Release prep"
+
+# 2) Bump version in all three files (same X.Y.Z in each):
 #    - package.json
 #    - src-tauri/tauri.conf.json
 #    - src-tauri/Cargo.toml
-
-# 2. Commit and push to a feature branch
 git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
-git commit -m "Bump to vX.Y.Z"
-git push origin <branch>
+git commit -m "Bump version to vX.Y.Z"
 
-# 3. Merge to main (user does this manually) — CI auto-builds and publishes the release
+# 3) Push develop to remote
+git push origin develop
+
+# 4) Merge develop into main, then push main
+git checkout main
+git merge --no-ff develop
+git push origin main
 ```
 
 - GitHub Actions (`.github/workflows/release.yml`) triggers on push to `main`
