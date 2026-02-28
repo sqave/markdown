@@ -1141,12 +1141,12 @@ async function startup() {
   // Open any file passed via Finder "Open With" before frontend was ready
   const pending = await window.api.getPendingFile();
   if (pending) {
-    const existing = tabs.find(t => t.filePath === pending.file_path);
+    const existing = tabs.find(t => t.filePath === pending.filePath);
     if (existing) {
       activateTab(existing.id);
     } else {
       snapshotCurrentTab();
-      const tab = createTab(pending.file_path, pending.content);
+      const tab = createTab(pending.filePath, pending.content);
       activateTab(tab.id);
     }
   }
