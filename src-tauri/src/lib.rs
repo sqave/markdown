@@ -38,7 +38,7 @@ async fn open_file(app: AppHandle) -> Result<Option<FileResult>, String> {
     let file_path = app
         .dialog()
         .file()
-        .add_filter("Markdown", &["md", "markdown"])
+        .add_filter("All Files", &["*"])
         .blocking_pick_file();
 
     match file_path {
@@ -68,8 +68,8 @@ async fn save_file_as(app: AppHandle, content: String) -> Result<Option<String>,
     let file_path = app
         .dialog()
         .file()
-        .add_filter("Markdown", &["md", "markdown"])
-        .set_file_name("untitled.md")
+        .add_filter("All Files", &["*"])
+        .set_file_name("untitled.txt")
         .blocking_save_file();
 
     match file_path {
@@ -416,6 +416,50 @@ fn handle_menu_event(app: &AppHandle, event: &tauri::menu::MenuEvent) {
     let _ = app.emit("menu-action", action);
 }
 
+// -- Traffic light repositioning (macOS) --
+
+#[cfg(target_os = "macos")]
+fn reposition_traffic_lights(ns_window_ptr: *mut std::ffi::c_void) {
+    use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
+
+    unsafe {
+        let ns_window: &NSWindow = &*(ns_window_ptr as *const NSWindow);
+
+        let Some(close) = ns_window.standardWindowButton(NSWindowButton::CloseButton) else {
+            return;
+        };
+        let Some(miniaturize) =
+            ns_window.standardWindowButton(NSWindowButton::MiniaturizeButton)
+        else {
+            return;
+        };
+        let zoom = ns_window.standardWindowButton(NSWindowButton::ZoomButton);
+
+        let title_bar_container = close.superview().unwrap().superview().unwrap();
+
+        let close_rect = NSView::frame(&close);
+        let title_bar_frame_height = close_rect.size.height + 15.0;
+
+        let mut title_bar_rect = NSView::frame(&title_bar_container);
+        title_bar_rect.size.height = title_bar_frame_height;
+        title_bar_rect.origin.y = ns_window.frame().size.height - title_bar_frame_height;
+        title_bar_container.setFrame(title_bar_rect);
+
+        let space_between = NSView::frame(&miniaturize).origin.x - close_rect.origin.x;
+
+        let mut buttons: Vec<&NSView> = vec![&close, &miniaturize];
+        if let Some(ref zoom) = zoom {
+            buttons.push(zoom);
+        }
+
+        for (i, button) in buttons.into_iter().enumerate() {
+            let mut rect = NSView::frame(button);
+            rect.origin.x = 16.0 + (i as f64 * space_between);
+            button.setFrameOrigin(rect.origin);
+        }
+    }
+}
+
 // -- Run --
 
 pub fn run() {
@@ -466,15 +510,17 @@ pub fn run() {
                     event: WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }),
                     ..
                 } => {
+                    const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10 MB
+
                     for path in paths {
-                        let ext = path
-                            .extension()
-                            .and_then(|e| e.to_str())
-                            .unwrap_or("");
-                        if !matches!(ext, "md" | "markdown" | "txt") {
-                            continue;
+                        // Skip files larger than 10 MB
+                        if let Ok(meta) = fs::metadata(&path) {
+                            if meta.len() > MAX_FILE_SIZE {
+                                continue;
+                            }
                         }
                         let path_str = path.to_string_lossy().to_string();
+                        // fs::read_to_string rejects non-UTF-8 binary files
                         if let Ok(content) = fs::read_to_string(&path_str) {
                             let _ = app.emit(
                                 "file-opened",
@@ -513,6 +559,18 @@ pub fn run() {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+                #[cfg(target_os = "macos")]
+                RunEvent::WindowEvent {
+                    event: WindowEvent::Resized(..),
+                    label,
+                    ..
+                } => {
+                    if let Some(window) = app.get_webview_window(label) {
+                        if let Ok(ptr) = window.ns_window() {
+                            reposition_traffic_lights(ptr);
                         }
                     }
                 }

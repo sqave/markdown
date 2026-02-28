@@ -108,6 +108,8 @@ html.fullscreen .titlebar {
   align-self: center;
   margin-left: 8px;
   -webkit-app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .theme-toggle {
@@ -212,6 +214,8 @@ html.fullscreen .titlebar {
   background: var(--border-subtle);
   padding: 2px;
   border-radius: 7px;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .font-btn {
@@ -228,6 +232,8 @@ html.fullscreen .titlebar {
   justify-content: center;
   transition: color 180ms ease, background-color 180ms ease;
   font-weight: 500;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .font-btn:hover {

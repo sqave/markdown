@@ -595,6 +595,7 @@ function renderTabBar() {
     const btn = document.createElement('button');
     btn.className = 'tab' + (tab.id === activeTabId ? ' active' : '') + (tab.isDirty ? ' dirty' : '');
     btn.dataset.tabId = tab.id;
+    btn.title = tab.filePath || 'Untitled';
 
     const nameSpan = document.createElement('span');
     nameSpan.className = 'tab-name';

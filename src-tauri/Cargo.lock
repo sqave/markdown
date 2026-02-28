@@ -308,8 +308,9 @@ dependencies = [
 
 [[package]]
 name = "cogmd"
-version = "1.0.3"
+version = "1.0.5"
 dependencies = [
+ "objc2-app-kit",
  "serde",
  "serde_json",
  "tauri",
