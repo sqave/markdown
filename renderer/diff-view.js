@@ -1,86 +1,111 @@
-// Diff/Compare View — lazy-loaded CodeMirror MergeView
-// Compares current editor content against git HEAD or last save
+// Compact unified diff view — HTML-based, no CodeMirror dependency
+// Renders only changed hunks with context lines and line numbers
 
-import { EditorView } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
-import { MergeView } from '@codemirror/merge';
+import { computeUnifiedDiff } from './diff-engine.js';
 
-let mergeView = null;
-let diffContainer = null;
-
-export function isDiffActive() {
-  return mergeView !== null;
+/**
+ * Get the base content to diff against.
+ * Tries git HEAD first, falls back to lastSavedContent.
+ */
+export async function getDiffBase(tab) {
+  if (tab.filePath && window.api.gitShow) {
+    try {
+      const gitContent = await window.api.gitShow(tab.filePath);
+      if (gitContent != null) return gitContent;
+    } catch (_) {}
+  }
+  return tab.lastSavedContent || '';
 }
 
-export async function showDiff(currentContent, originalContent, isDark, container) {
-  destroyDiff();
+/**
+ * Render a compact unified diff into the container.
+ * @param {string} currentText - current editor content
+ * @param {string} baseText - base content to diff against
+ * @param {HTMLElement} container - target DOM element
+ */
+export function renderDiff(currentText, baseText, container) {
+  container.replaceChildren();
 
-  diffContainer = container;
-  container.style.display = '';
+  const hunks = computeUnifiedDiff(baseText, currentText, 3);
 
-  const theme = EditorView.theme({
-    '&': { height: '100%' },
-    '.cm-content': {
-      fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
-      fontSize: '10px',
-      lineHeight: '1.6',
-    },
-    '.cm-gutters': { display: 'none' },
-    '&.cm-focused': { outline: 'none' },
-    '.cm-scroller': {
-      fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
-    },
-    '.cm-changedLine': {
-      backgroundColor: isDark ? 'rgba(67, 164, 114, 0.08)' : 'rgba(67, 164, 114, 0.06)',
-    },
-    '.cm-changedText': {
-      backgroundColor: isDark ? 'rgba(67, 164, 114, 0.2)' : 'rgba(67, 164, 114, 0.15)',
-    },
-    '.cm-deletedChunk': {
-      backgroundColor: isDark ? 'rgba(255, 100, 100, 0.08)' : 'rgba(255, 100, 100, 0.06)',
-    },
-  }, { dark: isDark });
+  if (hunks.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'diff-empty';
+    empty.textContent = 'No changes';
+    container.appendChild(empty);
+    return;
+  }
 
-  mergeView = new MergeView({
-    a: {
-      doc: originalContent,
-      extensions: [
-        theme,
-        EditorView.editable.of(false),
-        EditorView.lineWrapping,
-      ],
-    },
-    b: {
-      doc: currentContent,
-      extensions: [
-        theme,
-        EditorView.editable.of(false),
-        EditorView.lineWrapping,
-      ],
-    },
-    parent: container,
-    highlightChanges: true,
-    gutter: true,
+  const oldLines = baseText.split('\n');
+  const newLines = currentText.split('\n');
+  let prevHunkEnd = 0; // track old-line index of previous hunk end
+
+  hunks.forEach((hunk, hunkIdx) => {
+    // Collapsed separator between hunks
+    if (hunkIdx > 0) {
+      const gapStart = prevHunkEnd;
+      const gapEnd = hunk.oldStart - 1;
+      const gapCount = gapEnd - gapStart;
+      if (gapCount > 0) {
+        const collapse = document.createElement('div');
+        collapse.className = 'diff-collapse';
+        collapse.textContent = `\u00b7\u00b7\u00b7 ${gapCount} unchanged line${gapCount !== 1 ? 's' : ''} \u00b7\u00b7\u00b7`;
+        container.appendChild(collapse);
+      }
+    }
+
+    // Hunk header
+    const header = document.createElement('div');
+    header.className = 'diff-hunk-header';
+    const oldCount = hunk.lines.filter(l => l.type === 'context' || l.type === 'remove').length;
+    const newCount = hunk.lines.filter(l => l.type === 'context' || l.type === 'add').length;
+    header.textContent = `@@ -${hunk.oldStart},${oldCount} +${hunk.newStart},${newCount} @@`;
+    container.appendChild(header);
+
+    // Hunk lines
+    const hunkEl = document.createElement('div');
+    hunkEl.className = 'diff-hunk';
+
+    for (const line of hunk.lines) {
+      const row = document.createElement('div');
+      row.className = 'diff-line diff-' + line.type;
+
+      const oldNum = document.createElement('span');
+      oldNum.className = 'diff-line-num';
+      oldNum.textContent = line.oldLine != null ? String(line.oldLine) : '';
+
+      const newNum = document.createElement('span');
+      newNum.className = 'diff-line-num';
+      newNum.textContent = line.newLine != null ? String(line.newLine) : '';
+
+      const prefix = document.createElement('span');
+      prefix.className = 'diff-line-prefix';
+      prefix.textContent = line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ';
+
+      const text = document.createElement('span');
+      text.className = 'diff-line-text';
+      text.textContent = line.text;
+
+      row.appendChild(oldNum);
+      row.appendChild(newNum);
+      row.appendChild(prefix);
+      row.appendChild(text);
+      hunkEl.appendChild(row);
+    }
+
+    container.appendChild(hunkEl);
+
+    // Track where this hunk ends (old-line-wise) for gap calculation
+    const lastOldLine = hunk.lines.filter(l => l.oldLine != null).pop();
+    prevHunkEnd = lastOldLine ? lastOldLine.oldLine : hunk.oldStart;
   });
 }
 
-export function destroyDiff() {
-  if (mergeView) {
-    mergeView.destroy();
-    mergeView = null;
-  }
-  if (diffContainer) {
-    diffContainer.replaceChildren();
-    diffContainer.style.display = 'none';
-    diffContainer = null;
-  }
-}
-
-export async function getGitContent(filePath) {
-  if (!filePath || !window.api.gitShow) return null;
-  try {
-    return await window.api.gitShow(filePath);
-  } catch (_) {
-    return null;
+/**
+ * Clear diff content from container.
+ */
+export function destroyDiff(container) {
+  if (container) {
+    container.replaceChildren();
   }
 }

@@ -92,6 +92,7 @@ const md = markdownIt({
     return '';
   },
 });
+md.disable('lheading');
 
 // ===== Font Size =====
 
@@ -205,7 +206,36 @@ let themeMode = localStorage.getItem('cogmd-theme') || 'auto';
 let currentTheme = themeMode === 'auto'
   ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
   : themeMode;
-let currentViewMode = localStorage.getItem('cogmd-view-mode') || 'split';
+// Two-dimensional view state
+let layoutMode, rightPaneContent;
+{
+  // Migrate old single key to new pair
+  const oldMode = localStorage.getItem('cogmd-view-mode');
+  if (oldMode) {
+    localStorage.removeItem('cogmd-view-mode');
+    if (oldMode === 'editor') {
+      layoutMode = 'single';
+      rightPaneContent = 'preview';
+    } else if (oldMode === 'split') {
+      layoutMode = 'split';
+      rightPaneContent = 'preview';
+    } else if (oldMode === 'preview') {
+      layoutMode = 'split';
+      rightPaneContent = 'preview';
+    } else if (oldMode === 'diff') {
+      layoutMode = 'split';
+      rightPaneContent = 'diff';
+    } else {
+      layoutMode = 'split';
+      rightPaneContent = 'preview';
+    }
+    localStorage.setItem('cogmd-layout', layoutMode);
+    localStorage.setItem('cogmd-right-pane', rightPaneContent);
+  } else {
+    layoutMode = localStorage.getItem('cogmd-layout') || 'split';
+    rightPaneContent = localStorage.getItem('cogmd-right-pane') || 'preview';
+  }
+}
 
 // ===== Large file mode =====
 
@@ -253,13 +283,14 @@ const previewEl = document.getElementById('previewContent');
 const editorPane = document.getElementById('editorPane');
 const themeToggle = document.getElementById('themeToggle');
 const copyBtn = document.getElementById('copyBtn');
-const modeBtns = document.querySelectorAll('.mode-btn');
+const layoutBtns = document.querySelectorAll('.mode-btn[data-layout]');
+const rightBtns = document.querySelectorAll('.mode-btn[data-right]');
 
 function makeExtensions() {
   return [
     themeCompartment.of(getThemeExtensions(currentTheme === 'dark')),
     fontSizeCompartment.of(makeFontSizeTheme(currentFontSize)),
-    markdown({ codeLanguages }),
+    markdown({ codeLanguages, extensions: { remove: ['SetextHeading'] } }),
     history({ minDepth: 200 }),
     drawSelection(),
     highlightActiveLine(),
@@ -282,8 +313,12 @@ function makeExtensions() {
         }
         window.api.setDocumentEdited(true);
         updateTitle();
-        // Debounced preview — no string copy per keystroke
-        schedulePreviewRender();
+        // Debounced preview / diff — no string copy per keystroke
+        if (layoutMode === 'split' && rightPaneContent === 'diff') {
+          scheduleDiffRender();
+        } else {
+          schedulePreviewRender();
+        }
         scheduleSessionSave();
       }
     }),
@@ -309,6 +344,23 @@ function schedulePreviewRender() {
 
   previewRenderTimer = setTimeout(() => {
     renderPreview(view.state.doc.toString());
+  }, 80);
+}
+
+// ===== Debounced Diff Rendering =====
+
+let diffRenderTimer = null;
+
+function scheduleDiffRender() {
+  if (diffRenderTimer) clearTimeout(diffRenderTimer);
+  diffRenderTimer = setTimeout(async () => {
+    const { renderDiff, getDiffBase } = await import('./diff-view.js');
+    const tab = tabs.find(t => t.id === activeTabId);
+    if (!tab) return;
+    const baseText = await getDiffBase(tab);
+    const currentText = view.state.doc.toString();
+    const diffEl = document.getElementById('diffContent');
+    renderDiff(currentText, baseText, diffEl);
   }, 80);
 }
 
@@ -460,7 +512,11 @@ function activateTab(tabId) {
   updateTitle();
 
   const content = tab.editorState ? tab.editorState.doc.toString() : (tab.content || '');
-  renderPreviewImmediate(content);
+  if (layoutMode === 'split' && rightPaneContent === 'diff') {
+    scheduleDiffRender();
+  } else {
+    renderPreviewImmediate(content);
+  }
   renderTabBar();
 
   const activeEl = tabBar.querySelector('.tab.active');
@@ -784,6 +840,8 @@ function resetAllSettings() {
   if (!confirm('Reset all settings to defaults? This will clear your tabs and preferences.')) return;
   localStorage.removeItem('cogmd-theme');
   localStorage.removeItem('cogmd-font-size');
+  localStorage.removeItem('cogmd-layout');
+  localStorage.removeItem('cogmd-right-pane');
   localStorage.removeItem('cogmd-view-mode');
   localStorage.removeItem('cogmd-session');
   idbSet('session', null).catch(() => {});
@@ -806,10 +864,10 @@ window.api.onMenuAction((action) => {
       applyTheme(next[themeMode]);
       break;
     }
-    case 'viewEditor': applyViewMode('editor'); break;
-    case 'viewSplit': applyViewMode('split'); break;
-    case 'viewPreview': applyViewMode('preview'); break;
-    case 'viewDiff': applyViewMode('diff'); break;
+    case 'viewSingle': applyView('single', rightPaneContent); break;
+    case 'viewSplit': applyView('split', rightPaneContent); break;
+    case 'viewPreview': applyView('split', 'preview'); break;
+    case 'viewDiff': applyView('split', 'diff'); break;
     case 'fontIncrease': applyFontSize(currentFontSize + 1); break;
     case 'fontDecrease': applyFontSize(currentFontSize - 1); break;
     case 'fontReset': applyFontSize(FONT_SIZE_DEFAULT); break;
@@ -915,20 +973,31 @@ document.addEventListener('mouseup', () => {
   }
 });
 
-// ===== View Mode System =====
+// ===== View Mode System (two-dimensional: layout + right pane content) =====
 
 const previewPane = document.querySelector('.preview-pane');
+const diffContent = document.getElementById('diffContent');
+const previewContent = document.getElementById('previewContent');
 
-const diffPane = document.getElementById('diffPane');
+async function applyView(layout, rightPane) {
+  // Validate
+  if (layout !== 'single' && layout !== 'split') layout = 'split';
+  if (rightPane !== 'preview' && rightPane !== 'diff') rightPane = 'preview';
 
-async function applyViewMode(mode) {
-  const validModes = ['editor', 'split', 'preview', 'diff'];
-  if (!validModes.includes(mode)) mode = 'split';
-  currentViewMode = mode;
-  localStorage.setItem('cogmd-view-mode', mode);
+  layoutMode = layout;
+  rightPaneContent = rightPane;
+  localStorage.setItem('cogmd-layout', layout);
+  localStorage.setItem('cogmd-right-pane', rightPane);
 
-  modeBtns.forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.mode === mode);
+  // Update layout button active states
+  layoutBtns.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.layout === layout);
+  });
+
+  // Update right-pane button active states + dimmed when single
+  rightBtns.forEach(btn => {
+    btn.classList.toggle('active', layout === 'split' && btn.dataset.right === rightPane);
+    btn.classList.toggle('dimmed', layout === 'single');
   });
 
   // Reset visibility
@@ -936,42 +1005,58 @@ async function applyViewMode(mode) {
   divider.style.display = '';
   previewPane.style.display = '';
 
-  // Tear down diff when leaving diff mode
-  if (mode !== 'diff') {
-    import('./diff-view.js').then(m => m.destroyDiff()).catch(() => {});
-  }
-
-  if (mode === 'split') {
-    container.style.gridTemplateColumns = '1fr auto 1fr';
-    renderPreviewImmediate(view.state.doc.toString());
-  } else if (mode === 'preview') {
-    editorPane.style.display = 'none';
-    divider.style.display = 'none';
-    container.style.gridTemplateColumns = '1fr';
-    renderPreviewImmediate(view.state.doc.toString());
-  } else if (mode === 'diff') {
-    editorPane.style.display = 'none';
+  if (layout === 'single') {
+    // Editor only
     divider.style.display = 'none';
     previewPane.style.display = 'none';
     container.style.gridTemplateColumns = '1fr';
-
-    // Lazy-load diff module — compare against last save
-    const { showDiff } = await import('./diff-view.js');
-    const currentContent = view.state.doc.toString();
-    const tab = tabs.find(t => t.id === activeTabId);
-    const savedContent = tab ? (tab.lastSavedContent || '') : '';
-
-    showDiff(currentContent, savedContent, currentTheme === 'dark', diffPane);
+    // Clean up diff content
+    const { destroyDiff } = await import('./diff-view.js');
+    destroyDiff(diffContent);
+    diffContent.style.display = 'none';
+    previewContent.style.display = '';
   } else {
-    // editor only
-    divider.style.display = 'none';
-    previewPane.style.display = 'none';
-    container.style.gridTemplateColumns = '1fr';
+    // Split mode
+    container.style.gridTemplateColumns = '1fr auto 1fr';
+
+    if (rightPane === 'preview') {
+      diffContent.style.display = 'none';
+      previewContent.style.display = '';
+      const { destroyDiff } = await import('./diff-view.js');
+      destroyDiff(diffContent);
+      renderPreviewImmediate(view.state.doc.toString());
+    } else {
+      // diff
+      previewContent.style.display = 'none';
+      diffContent.style.display = '';
+      // Render diff
+      const { renderDiff, getDiffBase } = await import('./diff-view.js');
+      const tab = tabs.find(t => t.id === activeTabId);
+      if (tab) {
+        const baseText = await getDiffBase(tab);
+        const currentText = view.state.doc.toString();
+        renderDiff(currentText, baseText, diffContent);
+      }
+    }
   }
 }
 
-modeBtns.forEach(btn => {
-  btn.addEventListener('click', () => applyViewMode(btn.dataset.mode));
+// Layout buttons: set layout mode
+layoutBtns.forEach(btn => {
+  btn.addEventListener('click', () => applyView(btn.dataset.layout, rightPaneContent));
+});
+
+// Right-pane buttons: set content type and flip to split if in single mode
+rightBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const newRight = btn.dataset.right;
+    // If already in split+this, toggle to single
+    if (layoutMode === 'split' && rightPaneContent === newRight) {
+      applyView('single', rightPaneContent);
+    } else {
+      applyView('split', newRight);
+    }
+  });
 });
 
 // ===== Startup =====
@@ -989,7 +1074,7 @@ async function startup() {
     renderTabBar();
   }
 
-  applyViewMode(currentViewMode);
+  applyView(layoutMode, rightPaneContent);
 
   requestAnimationFrame(() => {
     const splash = document.getElementById('splash');
