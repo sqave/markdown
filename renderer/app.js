@@ -887,7 +887,7 @@ window.api.onMenuAction((action) => {
     case 'fontDecrease': applyFontSize(currentFontSize - 1); break;
     case 'fontReset': applyFontSize(FONT_SIZE_DEFAULT); break;
     case 'resetSettings': resetAllSettings(); break;
-    case 'checkForUpdates': window.api.checkForUpdates(); break;
+    case 'checkForUpdates': window.api.checkForUpdates(true); break;
     case 'refreshPreview': {
       const text = view.state.doc.toString();
       isLargeFile = false;
@@ -953,9 +953,9 @@ window.api.onUpdateDownloaded(() => {
   });
 });
 
-window.api.onUpdateNotAvailable(() => {
-  showUpdateBar("You're up to date!", null, null);
-  setTimeout(hideUpdateBar, 3000);
+window.api.onUpdateError(() => {
+  showUpdateBar('Update check failed', null, null);
+  setTimeout(hideUpdateBar, 5000);
 });
 
 // ===== File Drop Overlay =====
@@ -1152,10 +1152,10 @@ async function startup() {
   }
 
   // Defer non-critical work to after first paint
-  requestIdleCallback(() => {
+  setTimeout(() => {
     initShiki();
     window.api.checkForUpdates();
-  });
+  }, 100);
 }
 
 startup();

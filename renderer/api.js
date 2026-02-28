@@ -30,7 +30,7 @@ window.api = {
     listen('file-opened', (e) => callback(e.payload));
   },
 
-  checkForUpdates: async () => {
+  checkForUpdates: async (manual = false) => {
     try {
       const update = await check();
       if (update) {
@@ -38,11 +38,12 @@ window.api = {
         window.dispatchEvent(new CustomEvent('cogmd-update-available', { detail: { version: update.version } }));
         await update.downloadAndInstall();
         window.dispatchEvent(new CustomEvent('cogmd-update-downloaded', { detail: { version: update.version } }));
-      } else {
-        window.dispatchEvent(new CustomEvent('cogmd-update-not-available'));
       }
-    } catch (_) {
-      window.dispatchEvent(new CustomEvent('cogmd-update-not-available'));
+    } catch (e) {
+      console.error('Update check failed:', e);
+      if (manual) {
+        window.dispatchEvent(new CustomEvent('cogmd-update-error'));
+      }
     }
   },
 
@@ -58,8 +59,8 @@ window.api = {
     window.addEventListener('cogmd-update-downloaded', () => callback());
   },
 
-  onUpdateNotAvailable: (callback) => {
-    window.addEventListener('cogmd-update-not-available', () => callback());
+  onUpdateError: (callback) => {
+    window.addEventListener('cogmd-update-error', () => callback());
   },
 
   showWindow: () => appWindow.show(),

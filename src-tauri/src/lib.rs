@@ -416,50 +416,6 @@ fn handle_menu_event(app: &AppHandle, event: &tauri::menu::MenuEvent) {
     let _ = app.emit("menu-action", action);
 }
 
-// -- Traffic light repositioning (macOS) --
-
-#[cfg(target_os = "macos")]
-fn reposition_traffic_lights(ns_window_ptr: *mut std::ffi::c_void) {
-    use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
-
-    unsafe {
-        let ns_window: &NSWindow = &*(ns_window_ptr as *const NSWindow);
-
-        let Some(close) = ns_window.standardWindowButton(NSWindowButton::CloseButton) else {
-            return;
-        };
-        let Some(miniaturize) =
-            ns_window.standardWindowButton(NSWindowButton::MiniaturizeButton)
-        else {
-            return;
-        };
-        let zoom = ns_window.standardWindowButton(NSWindowButton::ZoomButton);
-
-        let title_bar_container = close.superview().unwrap().superview().unwrap();
-
-        let close_rect = NSView::frame(&close);
-        let title_bar_frame_height = close_rect.size.height + 15.0;
-
-        let mut title_bar_rect = NSView::frame(&title_bar_container);
-        title_bar_rect.size.height = title_bar_frame_height;
-        title_bar_rect.origin.y = ns_window.frame().size.height - title_bar_frame_height;
-        title_bar_container.setFrame(title_bar_rect);
-
-        let space_between = NSView::frame(&miniaturize).origin.x - close_rect.origin.x;
-
-        let mut buttons: Vec<&NSView> = vec![&close, &miniaturize];
-        if let Some(ref zoom) = zoom {
-            buttons.push(zoom);
-        }
-
-        for (i, button) in buttons.into_iter().enumerate() {
-            let mut rect = NSView::frame(button);
-            rect.origin.x = 16.0 + (i as f64 * space_between);
-            button.setFrameOrigin(rect.origin);
-        }
-    }
-}
-
 // -- Run --
 
 pub fn run() {
@@ -564,18 +520,6 @@ pub fn run() {
                                     },
                                 );
                             }
-                        }
-                    }
-                }
-                #[cfg(target_os = "macos")]
-                RunEvent::WindowEvent {
-                    event: WindowEvent::Resized(..),
-                    label,
-                    ..
-                } => {
-                    if let Some(window) = app.get_webview_window(label) {
-                        if let Ok(ptr) = window.ns_window() {
-                            reposition_traffic_lights(ptr);
                         }
                     }
                 }
