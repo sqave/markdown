@@ -538,26 +538,22 @@ pub fn run() {
                         if let Ok(path) = url.to_file_path() {
                             let path_str = path.to_string_lossy().to_string();
                             if let Ok(content) = fs::read_to_string(&path_str) {
-                                let data = PendingFile {
-                                    file_path: path_str.clone(),
-                                    content: content.clone(),
-                                };
-
-                                // Try to emit to frontend; if not ready, store as pending
-                                if app
-                                    .emit(
-                                        "file-opened",
-                                        FileResult {
-                                            file_path: path_str,
-                                            content,
-                                        },
-                                    )
-                                    .is_err()
-                                {
-                                    if let Some(state) = app.try_state::<AppState>() {
-                                        *state.pending_file.lock().unwrap() = Some(data);
-                                    }
+                                // Always store as pending (frontend checks after startup)
+                                if let Some(state) = app.try_state::<AppState>() {
+                                    *state.pending_file.lock().unwrap() = Some(PendingFile {
+                                        file_path: path_str.clone(),
+                                        content: content.clone(),
+                                    });
                                 }
+
+                                // Also emit for the "app already running" case
+                                let _ = app.emit(
+                                    "file-opened",
+                                    FileResult {
+                                        file_path: path_str,
+                                        content,
+                                    },
+                                );
                             }
                         }
                     }

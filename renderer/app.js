@@ -1131,9 +1131,23 @@ async function startup() {
   performance.mark('editor-ready');
   performance.measure('startup', 'startup-begin', 'editor-ready');
 
-  // Defer Shiki initialization to after first paint
+  // Open any file passed via Finder "Open With" before frontend was ready
+  const pending = await window.api.getPendingFile();
+  if (pending) {
+    const existing = tabs.find(t => t.filePath === pending.file_path);
+    if (existing) {
+      activateTab(existing.id);
+    } else {
+      snapshotCurrentTab();
+      const tab = createTab(pending.file_path, pending.content);
+      activateTab(tab.id);
+    }
+  }
+
+  // Defer non-critical work to after first paint
   requestIdleCallback(() => {
     initShiki();
+    window.api.checkForUpdates();
   });
 }
 

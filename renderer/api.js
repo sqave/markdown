@@ -70,10 +70,3 @@ window.api = {
   },
 };
 
-// Check for pending file (opened before frontend was ready)
-(async () => {
-  const pending = await invoke('get_pending_file');
-  if (pending) {
-    window.dispatchEvent(new CustomEvent('cogmd-pending-file', { detail: pending }));
-  }
-})();
