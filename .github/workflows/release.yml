@@ -11,9 +11,12 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             runner: macos-latest
+            name: Apple Silicon (M1+)
           - target: x86_64-apple-darwin
             runner: macos-latest
+            name: Intel Mac
 
+    name: build (${{ matrix.name }})
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: write
