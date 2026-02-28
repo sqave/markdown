@@ -17,6 +17,7 @@ window.api = {
   saveFileAs: (content) => invoke('save_file_as', { content }),
   setTitle: (title) => invoke('set_window_title', { title }),
   setDocumentEdited: (edited) => invoke('set_document_edited', { edited }),
+  openFileFolder: (filePath) => invoke('open_file_folder', { filePath }),
   getPendingFile: () => invoke('get_pending_file'),
   gitShow: (filePath) => invoke('git_show', { filePath }),
   extractVsix: (vsixPath) => invoke('extract_vsix', { vsixPath }),
@@ -78,4 +79,3 @@ window.api = {
     });
   },
 };
-

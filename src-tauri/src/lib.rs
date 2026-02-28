@@ -96,6 +96,37 @@ fn set_document_edited(_app: AppHandle, _edited: bool) {
 }
 
 #[tauri::command]
+fn open_file_folder(file_path: String) -> Result<bool, String> {
+    let parent = std::path::Path::new(&file_path)
+        .parent()
+        .ok_or("Invalid file path")?;
+
+    #[cfg(target_os = "macos")]
+    let status = Command::new("open")
+        .arg(parent)
+        .status()
+        .map_err(|e| format!("Failed to open folder: {e}"))?;
+
+    #[cfg(target_os = "windows")]
+    let status = Command::new("explorer")
+        .arg(parent)
+        .status()
+        .map_err(|e| format!("Failed to open folder: {e}"))?;
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let status = Command::new("xdg-open")
+        .arg(parent)
+        .status()
+        .map_err(|e| format!("Failed to open folder: {e}"))?;
+
+    if !status.success() {
+        return Err("Failed to open containing folder".to_string());
+    }
+
+    Ok(true)
+}
+
+#[tauri::command]
 fn get_pending_file(state: State<AppState>) -> Option<PendingFile> {
     state.pending_file.lock().unwrap().take()
 }
@@ -293,6 +324,9 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     let file_save_as = MenuItemBuilder::with_id("menu_save_as", "Save As…")
         .accelerator("CmdOrCtrl+Shift+S")
         .build(app)?;
+    let file_open_folder = MenuItemBuilder::with_id("menu_open_folder", "Open Containing Folder")
+        .accelerator("CmdOrCtrl+Shift+O")
+        .build(app)?;
     let file_close_tab = MenuItemBuilder::with_id("menu_close_tab", "Close Tab")
         .accelerator("CmdOrCtrl+W")
         .build(app)?;
@@ -311,6 +345,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .separator()
         .item(&file_save)
         .item(&file_save_as)
+        .item(&file_open_folder)
         .separator()
         .item(&file_close_tab)
         .separator()
@@ -397,6 +432,7 @@ fn handle_menu_event(app: &AppHandle, event: &tauri::menu::MenuEvent) {
         "menu_open" => "open",
         "menu_save" => "save",
         "menu_save_as" => "saveAs",
+        "menu_open_folder" => "openContainingFolder",
         "menu_close_tab" => "closeTab",
         "menu_next_tab" => "nextTab",
         "menu_prev_tab" => "prevTab",
@@ -440,6 +476,7 @@ pub fn run() {
             save_file_as,
             set_window_title,
             set_document_edited,
+            open_file_folder,
             get_pending_file,
             git_show,
             extract_vsix,

@@ -27,11 +27,18 @@
     <div class="titlebar-actions" data-tauri-drag-region>
       <button class="copy-btn" id="copyBtn" title="Copy markdown (⌘⇧C)">
         <svg class="icon-clipboard" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="9" y="2" width="6" height="4" rx="1"/>
-          <path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/>
+          <rect x="9" y="9" width="11" height="11" rx="2"/>
+          <path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/>
         </svg>
         <svg class="icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </button>
+
+      <button class="open-folder-btn hidden" id="openFolderBtn" title="Open containing folder">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v2"/>
+          <path d="M3 10h18l-2 8H5l-2-8z"/>
         </svg>
       </button>
 
@@ -57,10 +64,10 @@
 
       <div class="font-controls">
         <button class="font-btn" id="fontDecrease" title="Decrease font size (⌘−)">
-          <span style="font-size:11px">A</span>
+          <span class="font-glyph font-glyph-sm">A</span>
         </button>
         <button class="font-btn" id="fontIncrease" title="Increase font size (⌘+)">
-          <span style="font-size:15px">A</span>
+          <span class="font-glyph font-glyph-lg">A</span>
         </button>
       </div>
 

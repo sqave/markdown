@@ -285,6 +285,7 @@ const previewEl = document.getElementById('previewContent');
 const editorPane = document.getElementById('editorPane');
 const themeToggle = document.getElementById('themeToggle');
 const copyBtn = document.getElementById('copyBtn');
+const openFolderBtn = document.getElementById('openFolderBtn');
 const layoutBtns = document.querySelectorAll('.mode-btn[data-layout]');
 const rightBtns = document.querySelectorAll('.mode-btn[data-right]');
 
@@ -460,9 +461,28 @@ copyBtn.addEventListener('click', async () => {
   setTimeout(() => copyBtn.classList.remove('copied'), 1500);
 });
 
+openFolderBtn.addEventListener('click', async () => {
+  await handleOpenContainingFolder();
+});
+
+function updateOpenFolderButton() {
+  const hasFileOnDisk = Boolean(currentFilePath);
+  openFolderBtn.classList.toggle('hidden', !hasFileOnDisk);
+}
+
+async function handleOpenContainingFolder() {
+  if (!currentFilePath) return;
+  try {
+    await window.api.openFileFolder(currentFilePath);
+  } catch (e) {
+    console.error('Failed to open containing folder:', e);
+  }
+}
+
 // ===== Title =====
 
 function updateTitle() {
+  updateOpenFolderButton();
   const name = currentFilePath
     ? currentFilePath.split('/').pop()
     : 'Untitled';
@@ -871,6 +891,7 @@ window.api.onMenuAction((action) => {
     case 'open': handleOpen(); break;
     case 'save': handleSave(); break;
     case 'saveAs': handleSaveAs(); break;
+    case 'openContainingFolder': handleOpenContainingFolder(); break;
     case 'closeTab': closeTab(activeTabId); break;
     case 'nextTab': cycleTab(1); break;
     case 'prevTab': cycleTab(-1); break;
