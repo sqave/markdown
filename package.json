@@ -1,0 +1,59 @@
+{
+  "name": "cogmd",
+  "version": "1.0.0",
+  "description": "A lightweight markdown editor with live preview",
+  "main": "main.js",
+  "scripts": {
+    "start": "npm run bundle && electron .",
+    "bundle": "node esbuild.config.mjs",
+    "icons": "node scripts/generate-icon.mjs",
+    "build": "npm run bundle && npm run icons && electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "esbuild": "^0.24.0",
+    "sharp": "^0.33.5"
+  },
+  "dependencies": {
+    "@codemirror/lang-markdown": "^6.3.0",
+    "@codemirror/language-data": "^6.5.0",
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/view": "^6.34.0",
+    "codemirror": "^6.0.1",
+    "dompurify": "^3.3.1",
+    "highlight.js": "^11.10.0",
+    "markdown-it": "^14.1.0"
+  },
+  "build": {
+    "appId": "com.cogmd.app",
+    "productName": "CogMD",
+    "directories": {
+      "buildResources": "build"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "build/**/*",
+      "node_modules/**/*"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "md",
+        "name": "Markdown",
+        "role": "Editor"
+      },
+      {
+        "ext": "markdown",
+        "name": "Markdown",
+        "role": "Editor"
+      }
+    ]
+  }
+}
