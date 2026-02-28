@@ -10,8 +10,8 @@
   <div class="splash" id="splash">
     <img src="../build/icon.png" class="splash-icon" alt="">
   </div>
-  <div class="titlebar">
-    <div class="titlebar-tabs" id="tabBar">
+  <div class="titlebar" data-tauri-drag-region>
+    <div class="titlebar-tabs" id="tabBar" data-tauri-drag-region>
       <button class="tab-new-btn" id="tabNewBtn" title="New tab (⌘N)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -19,7 +19,7 @@
       </button>
     </div>
 
-    <div class="titlebar-actions">
+    <div class="titlebar-actions" data-tauri-drag-region>
       <button class="copy-btn" id="copyBtn" title="Copy markdown (⌘⇧C)">
         <svg class="icon-clipboard" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="9" y="2" width="6" height="4" rx="1"/>
@@ -75,6 +75,11 @@
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
           </svg>
         </button>
+        <button class="mode-btn" data-mode="diff" title="Diff view (⌘4)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 6h7"/><path d="M4 10h7"/><path d="M4 14h4"/><path d="M15 6h5"/><path d="M15 10h5"/><path d="M15 14h5"/><line x1="12" y1="3" x2="12" y2="21"/>
+          </svg>
+        </button>
       </div>
     </div>
   </div>
@@ -85,6 +90,17 @@
     <div class="preview-pane">
       <div class="preview-content" id="previewContent"></div>
     </div>
+    <div class="diff-pane" id="diffPane" style="display:none"></div>
+  </div>
+
+  <div class="update-bar" id="updateBar">
+    <span class="update-msg" id="updateMsg"></span>
+    <button class="update-action" id="updateAction"></button>
+    <button class="update-dismiss" id="updateDismiss" title="Dismiss">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+      </svg>
+    </button>
   </div>
 
   <script src="bundle.js"></script>

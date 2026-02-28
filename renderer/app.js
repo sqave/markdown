@@ -1,14 +1,77 @@
+import './api.js';
 import { EditorView, keymap, highlightActiveLine, drawSelection } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
-import { languages } from '@codemirror/language-data';
+import { LanguageDescription } from '@codemirror/language';
 import { defaultKeymap, indentWithTab, history, historyKeymap } from '@codemirror/commands';
 import { syntaxHighlighting, HighlightStyle, bracketMatching } from '@codemirror/language';
 import { closeBrackets } from '@codemirror/autocomplete';
 import { tags } from '@lezer/highlight';
 import markdownIt from 'markdown-it';
-import hljs from 'highlight.js';
 import DOMPurify from 'dompurify';
+import morphdom from 'morphdom';
+
+// ===== Performance instrumentation =====
+
+performance.mark('bundle-parse-end');
+
+// ===== Manual language imports (replaces @codemirror/language-data) =====
+
+const codeLanguages = [
+  LanguageDescription.of({ name: 'JavaScript', alias: ['js', 'jsx'], extensions: ['js', 'mjs', 'jsx'], load: () => import('@codemirror/lang-javascript').then(m => m.javascript({ jsx: true })) }),
+  LanguageDescription.of({ name: 'TypeScript', alias: ['ts', 'tsx'], extensions: ['ts', 'tsx'], load: () => import('@codemirror/lang-javascript').then(m => m.javascript({ jsx: true, typescript: true })) }),
+  LanguageDescription.of({ name: 'Python', alias: ['py'], extensions: ['py'], load: () => import('@codemirror/lang-python').then(m => m.python()) }),
+  LanguageDescription.of({ name: 'HTML', alias: ['htm'], extensions: ['html', 'htm'], load: () => import('@codemirror/lang-html').then(m => m.html()) }),
+  LanguageDescription.of({ name: 'CSS', extensions: ['css'], load: () => import('@codemirror/lang-css').then(m => m.css()) }),
+  LanguageDescription.of({ name: 'JSON', extensions: ['json'], load: () => import('@codemirror/lang-json').then(m => m.json()) }),
+  LanguageDescription.of({ name: 'Rust', alias: ['rs'], extensions: ['rs'], load: () => import('@codemirror/lang-rust').then(m => m.rust()) }),
+  LanguageDescription.of({ name: 'Java', extensions: ['java'], load: () => import('@codemirror/lang-java').then(m => m.java()) }),
+];
+
+// ===== Shiki (deferred initialization) =====
+
+let shikiHighlighter = null;
+let shikiReady = false;
+
+async function initShiki() {
+  const { createHighlighterCore } = await import('shiki/core');
+  const { createJavaScriptRegExpEngine } = await import('shiki/engine/javascript');
+
+  shikiHighlighter = await createHighlighterCore({
+    themes: [import('shiki/dist/themes/one-dark-pro.mjs'), import('shiki/dist/themes/one-light.mjs')],
+    langs: [
+      import('shiki/dist/langs/javascript.mjs'),
+      import('shiki/dist/langs/typescript.mjs'),
+      import('shiki/dist/langs/python.mjs'),
+      import('shiki/dist/langs/html.mjs'),
+      import('shiki/dist/langs/css.mjs'),
+      import('shiki/dist/langs/json.mjs'),
+      import('shiki/dist/langs/rust.mjs'),
+      import('shiki/dist/langs/java.mjs'),
+      import('shiki/dist/langs/bash.mjs'),
+      import('shiki/dist/langs/yaml.mjs'),
+      import('shiki/dist/langs/sql.mjs'),
+      import('shiki/dist/langs/go.mjs'),
+    ],
+    engine: createJavaScriptRegExpEngine(),
+  });
+
+  shikiReady = true;
+  // Re-render preview with syntax highlighting now available
+  schedulePreviewRender();
+}
+
+function shikiHighlight(str, lang) {
+  if (!shikiReady || !shikiHighlighter) return '';
+  try {
+    const loadedLangs = shikiHighlighter.getLoadedLanguages();
+    if (!loadedLangs.includes(lang)) return '';
+    const theme = currentTheme === 'dark' ? 'one-dark-pro' : 'one-light';
+    return shikiHighlighter.codeToHtml(str, { lang, theme });
+  } catch (_) {
+    return '';
+  }
+}
 
 // ===== Markdown renderer =====
 
@@ -17,10 +80,14 @@ const md = markdownIt({
   linkify: true,
   typographer: true,
   highlight(str, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      try {
-        return hljs.highlight(str, { language: lang }).value;
-      } catch (_) {}
+    if (!lang) return '';
+    const html = shikiHighlight(str, lang);
+    if (html) {
+      // Shiki returns a full <pre><code>...</code></pre> block.
+      // Extract just the inner HTML of the <code> element so markdown-it
+      // can wrap it in its own <pre><code> tags (avoids double-wrapping).
+      const match = html.match(/<code[^>]*>([\s\S]*)<\/code>/);
+      return match ? match[1] : html;
     }
     return '';
   },
@@ -140,12 +207,45 @@ let currentTheme = themeMode === 'auto'
   : themeMode;
 let currentViewMode = localStorage.getItem('cogmd-view-mode') || 'split';
 
+// ===== Large file mode =====
+
+const LARGE_FILE_THRESHOLD = 200 * 1024; // 200 KB
+let isLargeFile = false;
+
+function checkLargeFile(length) {
+  isLargeFile = length > LARGE_FILE_THRESHOLD;
+}
+
 // ===== Tab Model =====
 
 let tabs = [];
 let activeTabId = null;
 let nextTabId = 1;
 let isTabSwitching = false;
+
+// ===== Tab LRU eviction =====
+
+const MAX_CACHED_TAB_STATES = 5;
+let tabAccessOrder = []; // most recent at end
+
+function touchTab(tabId) {
+  tabAccessOrder = tabAccessOrder.filter(id => id !== tabId);
+  tabAccessOrder.push(tabId);
+  evictStaleTabStates();
+}
+
+function evictStaleTabStates() {
+  if (tabAccessOrder.length <= MAX_CACHED_TAB_STATES) return;
+  const toEvict = tabAccessOrder.slice(0, tabAccessOrder.length - MAX_CACHED_TAB_STATES);
+  for (const id of toEvict) {
+    const tab = tabs.find(t => t.id === id);
+    if (tab && tab.editorState && tab.id !== activeTabId) {
+      // Preserve content string, drop heavy EditorState
+      tab.content = tab.editorState.doc.toString();
+      tab.editorState = null;
+    }
+  }
+}
 
 // ===== Editor Setup =====
 
@@ -159,8 +259,8 @@ function makeExtensions() {
   return [
     themeCompartment.of(getThemeExtensions(currentTheme === 'dark')),
     fontSizeCompartment.of(makeFontSizeTheme(currentFontSize)),
-    markdown({ codeLanguages: languages }),
-    history(),
+    markdown({ codeLanguages }),
+    history({ minDepth: 200 }),
     drawSelection(),
     highlightActiveLine(),
     closeBrackets(),
@@ -178,12 +278,12 @@ function makeExtensions() {
         if (tab) {
           const wasDirty = tab.isDirty;
           tab.isDirty = true;
-          // Only re-render tab bar when dirty state changes
           if (!wasDirty) renderTabBar();
         }
         window.api.setDocumentEdited(true);
         updateTitle();
-        renderPreview(update.state.doc.toString());
+        // Debounced preview — no string copy per keystroke
+        schedulePreviewRender();
         scheduleSessionSave();
       }
     }),
@@ -199,15 +299,52 @@ const view = new EditorView({
   parent: editorPane,
 });
 
+// ===== Debounced Preview Rendering =====
+
+let previewRenderTimer = null;
+
+function schedulePreviewRender() {
+  if (isLargeFile) return; // Large file mode: no live preview
+  if (previewRenderTimer) clearTimeout(previewRenderTimer);
+
+  previewRenderTimer = setTimeout(() => {
+    renderPreview(view.state.doc.toString());
+  }, 80);
+}
+
+// Immediate preview for tab switch / file open
+function renderPreviewImmediate(text) {
+  checkLargeFile(text.length);
+  if (isLargeFile) {
+    const msg = document.createElement('p');
+    msg.style.cssText = 'color:var(--text-muted);font-style:italic';
+    msg.textContent = 'Large file \u2014 preview on save (\u2318\u21e7R to refresh)';
+    previewEl.replaceChildren(msg);
+    return;
+  }
+  renderPreview(text);
+}
+
 // ===== Preview =====
 
 function renderPreview(text) {
   const rawHtml = md.render(text);
+  // DOMPurify sanitizes all HTML before DOM insertion — safe against XSS
   const cleanHtml = DOMPurify.sanitize(rawHtml, {
     ADD_TAGS: ['input'],
-    ADD_ATTR: ['type', 'checked', 'disabled'],
+    ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'style'],
   });
-  previewEl.innerHTML = cleanHtml;
+
+  // Use morphdom for incremental DOM updates (preserves scroll position)
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = cleanHtml; // Safe: content sanitized by DOMPurify above
+  morphdom(previewEl, wrapper, {
+    childrenOnly: true,
+    onBeforeElUpdated(fromEl, toEl) {
+      if (fromEl.isEqualNode(toEl)) return false;
+      return true;
+    },
+  });
 }
 
 // ===== Theme =====
@@ -273,8 +410,8 @@ function updateTitle() {
   const name = currentFilePath
     ? currentFilePath.split('/').pop()
     : 'Untitled';
-  const prefix = isDirty ? '● ' : '';
-  window.api.setTitle(`${prefix}${name} — CogMD`);
+  const prefix = isDirty ? '\u25cf ' : '';
+  window.api.setTitle(`${prefix}${name} \u2014 CogMD`);
 }
 
 // ===== Tab Core Functions =====
@@ -287,7 +424,6 @@ function snapshotCurrentTab() {
   const tab = tabs.find(t => t.id === activeTabId);
   if (!tab) return;
   tab.editorState = view.state;
-  tab.content = view.state.doc.toString();
   const sel = view.state.selection.main;
   tab.selectionMain = { anchor: sel.anchor, head: sel.head };
   tab.scrollTop = view.scrollDOM.scrollTop;
@@ -301,11 +437,10 @@ function activateTab(tabId) {
   if (!tab) return;
 
   isTabSwitching = true;
+  touchTab(tabId);
 
-  // Use setState for full state swap (preserves per-tab undo history)
   if (tab.editorState) {
     view.setState(tab.editorState);
-    // Sync compartments to current global settings (theme/font may have changed)
     view.dispatch({
       effects: [
         themeCompartment.reconfigure(getThemeExtensions(currentTheme === 'dark')),
@@ -313,8 +448,7 @@ function activateTab(tabId) {
       ],
     });
   } else {
-    // First activation — create fresh state from content
-    view.setState(makeEditorState(tab.content));
+    view.setState(makeEditorState(tab.content || ''));
   }
 
   isTabSwitching = false;
@@ -324,10 +458,11 @@ function activateTab(tabId) {
   isDirty = tab.isDirty;
   window.api.setDocumentEdited(isDirty);
   updateTitle();
-  renderPreview(tab.content);
+
+  const content = tab.editorState ? tab.editorState.doc.toString() : (tab.content || '');
+  renderPreviewImmediate(content);
   renderTabBar();
 
-  // Scroll active tab into view
   const activeEl = tabBar.querySelector('.tab.active');
   if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
 
@@ -346,6 +481,7 @@ function createTab(filePath, content) {
     isDirty: false,
     scrollTop: 0,
     selectionMain: { anchor: 0, head: 0 },
+    lastSavedContent: content || '',
   };
   tabs.push(tab);
   return tab;
@@ -361,8 +497,11 @@ function closeTab(tabId) {
     if (!confirm(`"${getTabName(tab)}" has unsaved changes. Close anyway?`)) return;
   }
 
+  tab.editorState = null;
+
   const idx = tabs.indexOf(tab);
   tabs.splice(idx, 1);
+  tabAccessOrder = tabAccessOrder.filter(id => id !== tabId);
 
   if (tabs.length === 0) {
     const newTab = createTab(null, '');
@@ -409,7 +548,6 @@ function renderTabBar() {
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'tab-close';
-    // Safe: static SVG content, no user data
     const closeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     closeSvg.setAttribute('width', '14');
     closeSvg.setAttribute('height', '14');
@@ -440,7 +578,6 @@ function renderTabBar() {
 
 tabNewBtn.addEventListener('click', () => handleNew());
 
-// Horizontal wheel scroll for tabs
 tabBar.addEventListener('wheel', (e) => {
   if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
     e.preventDefault();
@@ -473,11 +610,12 @@ async function handleOpen() {
     isTabSwitching = false;
     active.filePath = result.filePath;
     active.content = result.content;
+    active.lastSavedContent = result.content;
     currentFilePath = result.filePath;
     isDirty = false;
     window.api.setDocumentEdited(false);
     updateTitle();
-    renderPreview(result.content);
+    renderPreviewImmediate(result.content);
     renderTabBar();
     scheduleSessionSave();
     return;
@@ -494,7 +632,10 @@ async function handleSave() {
   if (currentFilePath) {
     await window.api.saveFile(currentFilePath, content);
     isDirty = false;
-    if (tab) tab.isDirty = false;
+    if (tab) {
+      tab.isDirty = false;
+      tab.lastSavedContent = content;
+    }
     window.api.setDocumentEdited(false);
     updateTitle();
     renderTabBar();
@@ -514,6 +655,7 @@ async function handleSaveAs() {
     if (tab) {
       tab.filePath = filePath;
       tab.isDirty = false;
+      tab.lastSavedContent = content;
     }
     window.api.setDocumentEdited(false);
     updateTitle();
@@ -522,13 +664,51 @@ async function handleSaveAs() {
   }
 }
 
-// ===== Session Persistence =====
+// ===== Session Persistence (IndexedDB) =====
+
+const DB_NAME = 'cogmd';
+const DB_STORE = 'session';
+const DB_VERSION = 1;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(DB_STORE)) {
+        db.createObjectStore(DB_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbGet(key) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, 'readonly');
+    const req = tx.objectStore(DB_STORE).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbSet(key, value) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
 
 let sessionSaveTimer = null;
 
 function scheduleSessionSave() {
   if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
-  sessionSaveTimer = setTimeout(saveSession, 500);
+  sessionSaveTimer = setTimeout(saveSession, 2000);
 }
 
 function saveSession() {
@@ -537,7 +717,7 @@ function saveSession() {
     tabs: tabs.map(t => ({
       id: t.id,
       filePath: t.filePath,
-      content: t.content,
+      content: t.editorState ? t.editorState.doc.toString() : (t.content || ''),
       isDirty: t.isDirty,
       scrollTop: t.scrollTop,
       selectionMain: t.selectionMain,
@@ -545,47 +725,57 @@ function saveSession() {
     activeTabId,
     nextTabId,
   };
-  try {
-    localStorage.setItem('cogmd-session', JSON.stringify(data));
-  } catch (e) {
-    // localStorage quota exceeded — silently fail
-  }
+  idbSet('session', data).catch(() => {
+    try {
+      localStorage.setItem('cogmd-session', JSON.stringify(data));
+    } catch (_) {}
+  });
 }
 
-function restoreSession() {
-  const raw = localStorage.getItem('cogmd-session');
-  if (!raw) return false;
+async function restoreSession() {
+  let data;
   try {
-    const data = JSON.parse(raw);
-    if (!data.tabs || data.tabs.length === 0) return false;
-    tabs = data.tabs;
-    nextTabId = data.nextTabId || (Math.max(...tabs.map(t => t.id)) + 1);
+    data = await idbGet('session');
+  } catch (_) {}
 
-    const targetId = data.activeTabId || tabs[0].id;
-    const tab = tabs.find(t => t.id === targetId) || tabs[0];
-
-    // Create a fresh EditorState for the restored tab (with undo history starting clean)
-    isTabSwitching = true;
-    const state = makeEditorState(tab.content);
-    view.setState(state);
-    isTabSwitching = false;
-
-    activeTabId = tab.id;
-    currentFilePath = tab.filePath;
-    isDirty = tab.isDirty;
-    window.api.setDocumentEdited(isDirty);
-    updateTitle();
-    renderPreview(tab.content);
-    renderTabBar();
-
-    requestAnimationFrame(() => {
-      view.scrollDOM.scrollTop = tab.scrollTop || 0;
-    });
-
-    return true;
-  } catch (e) {
-    return false;
+  // Fallback: migrate from localStorage
+  if (!data) {
+    const raw = localStorage.getItem('cogmd-session');
+    if (raw) {
+      try {
+        data = JSON.parse(raw);
+        localStorage.removeItem('cogmd-session');
+      } catch (_) {}
+    }
   }
+
+  if (!data || !data.tabs || data.tabs.length === 0) return false;
+
+  tabs = data.tabs;
+  nextTabId = data.nextTabId || (Math.max(...tabs.map(t => t.id)) + 1);
+
+  const targetId = data.activeTabId || tabs[0].id;
+  const tab = tabs.find(t => t.id === targetId) || tabs[0];
+
+  isTabSwitching = true;
+  const state = makeEditorState(tab.content);
+  view.setState(state);
+  isTabSwitching = false;
+
+  activeTabId = tab.id;
+  currentFilePath = tab.filePath;
+  isDirty = tab.isDirty;
+  window.api.setDocumentEdited(isDirty);
+  updateTitle();
+  renderPreviewImmediate(tab.content);
+  renderTabBar();
+  touchTab(tab.id);
+
+  requestAnimationFrame(() => {
+    view.scrollDOM.scrollTop = tab.scrollTop || 0;
+  });
+
+  return true;
 }
 
 // ===== Reset Settings =====
@@ -596,6 +786,7 @@ function resetAllSettings() {
   localStorage.removeItem('cogmd-font-size');
   localStorage.removeItem('cogmd-view-mode');
   localStorage.removeItem('cogmd-session');
+  idbSet('session', null).catch(() => {});
   location.reload();
 }
 
@@ -618,11 +809,18 @@ window.api.onMenuAction((action) => {
     case 'viewEditor': applyViewMode('editor'); break;
     case 'viewSplit': applyViewMode('split'); break;
     case 'viewPreview': applyViewMode('preview'); break;
+    case 'viewDiff': applyViewMode('diff'); break;
     case 'fontIncrease': applyFontSize(currentFontSize + 1); break;
     case 'fontDecrease': applyFontSize(currentFontSize - 1); break;
     case 'fontReset': applyFontSize(FONT_SIZE_DEFAULT); break;
     case 'resetSettings': resetAllSettings(); break;
     case 'checkForUpdates': window.api.checkForUpdates(); break;
+    case 'refreshPreview': {
+      const text = view.state.doc.toString();
+      isLargeFile = false;
+      renderPreview(text);
+      break;
+    }
   }
 });
 
@@ -643,16 +841,48 @@ window.api.onFullscreenChanged((isFullscreen) => {
   document.documentElement.classList.toggle('fullscreen', isFullscreen);
 });
 
-// ===== Auto-Update =====
+// ===== Auto-Update Notification Bar =====
 
-window.api.onUpdateNotAvailable(() => {
-  alert('You\'re up to date!');
+const updateBar = document.getElementById('updateBar');
+const updateMsg = document.getElementById('updateMsg');
+const updateAction = document.getElementById('updateAction');
+const updateDismiss = document.getElementById('updateDismiss');
+
+function showUpdateBar(message, actionText, onAction) {
+  if (!updateBar) return;
+  updateMsg.textContent = message;
+  if (actionText && onAction) {
+    updateAction.textContent = actionText;
+    updateAction.style.display = '';
+    updateAction.onclick = onAction;
+  } else {
+    updateAction.style.display = 'none';
+  }
+  updateBar.classList.add('visible');
+}
+
+function hideUpdateBar() {
+  if (!updateBar) return;
+  updateBar.classList.remove('visible');
+}
+
+if (updateDismiss) {
+  updateDismiss.addEventListener('click', hideUpdateBar);
+}
+
+window.api.onUpdateAvailable(() => {
+  showUpdateBar('Downloading update\u2026', null, null);
 });
 
 window.api.onUpdateDownloaded(() => {
-  if (confirm('A new update is ready. Restart now to install?')) {
+  showUpdateBar('Update ready \u2014 restart to install', 'Restart', () => {
     window.api.installUpdate();
-  }
+  });
+});
+
+window.api.onUpdateNotAvailable(() => {
+  showUpdateBar("You're up to date!", null, null);
+  setTimeout(hideUpdateBar, 3000);
 });
 
 // ===== Divider Drag =====
@@ -689,12 +919,14 @@ document.addEventListener('mouseup', () => {
 
 const previewPane = document.querySelector('.preview-pane');
 
-function applyViewMode(mode) {
-  if (mode !== 'editor' && mode !== 'split' && mode !== 'preview') mode = 'split';
+const diffPane = document.getElementById('diffPane');
+
+async function applyViewMode(mode) {
+  const validModes = ['editor', 'split', 'preview', 'diff'];
+  if (!validModes.includes(mode)) mode = 'split';
   currentViewMode = mode;
   localStorage.setItem('cogmd-view-mode', mode);
 
-  // Update active button
   modeBtns.forEach(btn => {
     btn.classList.toggle('active', btn.dataset.mode === mode);
   });
@@ -704,42 +936,74 @@ function applyViewMode(mode) {
   divider.style.display = '';
   previewPane.style.display = '';
 
+  // Tear down diff when leaving diff mode
+  if (mode !== 'diff') {
+    import('./diff-view.js').then(m => m.destroyDiff()).catch(() => {});
+  }
+
   if (mode === 'split') {
     container.style.gridTemplateColumns = '1fr auto 1fr';
+    renderPreviewImmediate(view.state.doc.toString());
   } else if (mode === 'preview') {
     editorPane.style.display = 'none';
     divider.style.display = 'none';
     container.style.gridTemplateColumns = '1fr';
+    renderPreviewImmediate(view.state.doc.toString());
+  } else if (mode === 'diff') {
+    editorPane.style.display = 'none';
+    divider.style.display = 'none';
+    previewPane.style.display = 'none';
+    container.style.gridTemplateColumns = '1fr';
+
+    // Lazy-load diff module — compare against last save
+    const { showDiff } = await import('./diff-view.js');
+    const currentContent = view.state.doc.toString();
+    const tab = tabs.find(t => t.id === activeTabId);
+    const savedContent = tab ? (tab.lastSavedContent || '') : '';
+
+    showDiff(currentContent, savedContent, currentTheme === 'dark', diffPane);
   } else {
+    // editor only
     divider.style.display = 'none';
     previewPane.style.display = 'none';
     container.style.gridTemplateColumns = '1fr';
   }
 }
 
-// Mode toggle click handlers
 modeBtns.forEach(btn => {
   btn.addEventListener('click', () => applyViewMode(btn.dataset.mode));
 });
 
 // ===== Startup =====
 
-// Restore session or create initial tab
-if (!restoreSession()) {
-  const tab = createTab(null, '');
-  activeTabId = tab.id;
-  currentFilePath = null;
-  isDirty = false;
-  updateTitle();
-  renderTabBar();
+performance.mark('startup-begin');
+
+async function startup() {
+  const restored = await restoreSession();
+  if (!restored) {
+    const tab = createTab(null, '');
+    activeTabId = tab.id;
+    currentFilePath = null;
+    isDirty = false;
+    updateTitle();
+    renderTabBar();
+  }
+
+  applyViewMode(currentViewMode);
+
+  requestAnimationFrame(() => {
+    const splash = document.getElementById('splash');
+    splash.classList.add('hidden');
+    setTimeout(() => splash.remove(), 300);
+  });
+
+  performance.mark('editor-ready');
+  performance.measure('startup', 'startup-begin', 'editor-ready');
+
+  // Defer Shiki initialization to after first paint
+  requestIdleCallback(() => {
+    initShiki();
+  });
 }
 
-// Apply saved mode on startup
-applyViewMode(currentViewMode);
-
-// Dismiss splash screen
-requestAnimationFrame(() => {
-  const splash = document.getElementById('splash');
-  splash.classList.add('hidden');
-  setTimeout(() => splash.remove(), 300);
-});
+startup();

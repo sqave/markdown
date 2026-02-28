@@ -70,7 +70,7 @@ html, body {
 .titlebar {
   height: 38px;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   padding: 0 16px 0 84px;
   -webkit-app-region: drag;
   background: var(--bg-secondary);
@@ -87,11 +87,12 @@ html.fullscreen .titlebar {
 .titlebar-tabs {
   flex: 1;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 0;
   overflow-x: auto;
   overflow-y: hidden;
   min-width: 0;
+  -webkit-app-region: drag;
 }
 
 .titlebar-tabs::-webkit-scrollbar {
@@ -105,6 +106,7 @@ html.fullscreen .titlebar {
   gap: 6px;
   align-self: center;
   margin-left: 8px;
+  -webkit-app-region: drag;
 }
 
 .theme-toggle {
@@ -280,8 +282,7 @@ html.fullscreen .titlebar {
   align-items: center;
   gap: 4px;
   height: 32px;
-  padding: 0 6px 1px 12px;
-  margin-bottom: -1px;
+  padding: 0 6px 0 12px;
   border: none;
   border-radius: 8px 8px 0 0;
   background: transparent;
@@ -374,7 +375,6 @@ html.fullscreen .titlebar {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-bottom: 2px;
   margin-left: 2px;
   transition: color 150ms ease, background-color 150ms ease;
 }
@@ -647,35 +647,94 @@ html.fullscreen .titlebar {
   accent-color: var(--accent);
 }
 
-/* ===== highlight.js theme overrides ===== */
+/* ===== Diff Pane ===== */
 
-[data-theme="light"] .hljs {
-  color: #383a42;
+.diff-pane {
+  overflow: hidden;
+  background: var(--bg-editor);
+  grid-column: 1 / -1;
 }
-[data-theme="light"] .hljs-comment { color: #9b9690; font-style: italic; }
-[data-theme="light"] .hljs-keyword { color: #a626a4; }
-[data-theme="light"] .hljs-string { color: #50a14f; }
-[data-theme="light"] .hljs-number { color: #986801; }
-[data-theme="light"] .hljs-built_in { color: #c18401; }
-[data-theme="light"] .hljs-function .hljs-title,
-[data-theme="light"] .hljs-title.function_ { color: #4078f2; }
-[data-theme="light"] .hljs-attr { color: #986801; }
-[data-theme="light"] .hljs-params { color: #383a42; }
-[data-theme="light"] .hljs-type { color: #c18401; }
 
-[data-theme="dark"] .hljs {
-  color: #abb2bf;
+.diff-pane .cm-mergeView {
+  height: 100%;
 }
-[data-theme="dark"] .hljs-comment { color: #5c6370; font-style: italic; }
-[data-theme="dark"] .hljs-keyword { color: #c678dd; }
-[data-theme="dark"] .hljs-string { color: #98c379; }
-[data-theme="dark"] .hljs-number { color: #d19a66; }
-[data-theme="dark"] .hljs-built_in { color: #e6c07b; }
-[data-theme="dark"] .hljs-function .hljs-title,
-[data-theme="dark"] .hljs-title.function_ { color: #61afef; }
-[data-theme="dark"] .hljs-attr { color: #d19a66; }
-[data-theme="dark"] .hljs-params { color: #abb2bf; }
-[data-theme="dark"] .hljs-type { color: #e6c07b; }
+
+/* ===== Shiki code block overrides ===== */
+
+.preview-content pre .shiki {
+  background: transparent !important;
+  padding: 0;
+  margin: 0;
+}
+
+.preview-content pre code .line {
+  display: block;
+}
+
+/* ===== Update Notification Bar ===== */
+
+.update-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 50;
+  transform: translateY(100%);
+  transition: transform 300ms ease;
+}
+
+.update-bar.visible {
+  transform: translateY(0);
+}
+
+.update-msg {
+  white-space: nowrap;
+}
+
+.update-action {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.update-action:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.update-dismiss {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.update-dismiss:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+}
 
 /* ===== Splash Screen ===== */
 
