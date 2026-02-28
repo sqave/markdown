@@ -38,6 +38,8 @@ window.api = {
         window.dispatchEvent(new CustomEvent('cogmd-update-available', { detail: { version: update.version } }));
         await update.downloadAndInstall();
         window.dispatchEvent(new CustomEvent('cogmd-update-downloaded', { detail: { version: update.version } }));
+      } else if (manual) {
+        window.dispatchEvent(new CustomEvent('cogmd-update-none'));
       }
     } catch (e) {
       console.error('Update check failed:', e);
@@ -61,6 +63,10 @@ window.api = {
 
   onUpdateError: (callback) => {
     window.addEventListener('cogmd-update-error', () => callback());
+  },
+
+  onUpdateNone: (callback) => {
+    window.addEventListener('cogmd-update-none', () => callback());
   },
 
   showWindow: () => appWindow.show(),

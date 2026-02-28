@@ -958,6 +958,11 @@ window.api.onUpdateError(() => {
   setTimeout(hideUpdateBar, 5000);
 });
 
+window.api.onUpdateNone(() => {
+  showUpdateBar('You\u2019re on the latest version', null, null);
+  setTimeout(hideUpdateBar, 5000);
+});
+
 // ===== File Drop Overlay =====
 
 const dropOverlay = document.getElementById('dropOverlay');
