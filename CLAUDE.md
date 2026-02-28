@@ -8,6 +8,12 @@
 - API shim: `renderer/api.js` — bridges `window.api` calls to Tauri `invoke()`/`listen()`
 - Build: esbuild bundles renderer, Cargo builds Rust backend
 
+## Versioning (Semver: MAJOR.MINOR.PATCH)
+
+- **PATCH (Z):** Bug fixes — bump for any fix (e.g. 0.16.0 → 0.16.1)
+- **MINOR (Y):** New features — bump for any new functionality (e.g. 0.16.1 → 0.17.0)
+- **MAJOR (X):** Only on major refactors, and only when the user explicitly confirms. Never bump on your own.
+
 ## Release Process
 
 Bump version in all three files, commit, push branch, merge to `main`. CI handles the rest.
