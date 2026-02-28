@@ -407,6 +407,9 @@ html.fullscreen .titlebar {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   height: calc(100% - 38px);
+}
+
+.container.animate-columns {
   transition: grid-template-columns 200ms ease;
 }
 

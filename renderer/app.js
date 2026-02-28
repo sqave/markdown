@@ -543,14 +543,15 @@ function createTab(filePath, content) {
   return tab;
 }
 
-function closeTab(tabId) {
+async function closeTab(tabId) {
   const tab = tabs.find(t => t.id === tabId);
   if (!tab) return;
 
   if (tabId === activeTabId) snapshotCurrentTab();
 
   if (tab.isDirty) {
-    if (!confirm(`"${getTabName(tab)}" has unsaved changes. Close anyway?`)) return;
+    const shouldClose = await window.api.confirmClose(getTabName(tab));
+    if (!shouldClose) return;
   }
 
   tab.editorState = null;
@@ -999,6 +1000,10 @@ async function applyView(layout, rightPane) {
     btn.classList.toggle('active', layout === 'split' && btn.dataset.right === rightPane);
     btn.classList.toggle('dimmed', layout === 'single');
   });
+
+  // Animate layout transitions (removed after transition to avoid drag lag)
+  container.classList.add('animate-columns');
+  setTimeout(() => container.classList.remove('animate-columns'), 250);
 
   // Reset visibility
   editorPane.style.display = '';

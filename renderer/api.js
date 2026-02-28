@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { check } from '@tauri-apps/plugin-updater';
+import { ask } from '@tauri-apps/plugin-dialog';
 import { relaunch } from '@tauri-apps/plugin-process';
 
 const appWindow = getCurrentWebviewWindow();
@@ -19,6 +20,7 @@ window.api = {
   getPendingFile: () => invoke('get_pending_file'),
   gitShow: (filePath) => invoke('git_show', { filePath }),
   extractVsix: (vsixPath) => invoke('extract_vsix', { vsixPath }),
+  confirmClose: (filename) => ask(`"${filename}" has unsaved changes. Close anyway?`, { title: 'Unsaved Changes', kind: 'warning', okLabel: 'Close', cancelLabel: 'Cancel' }),
 
   onMenuAction: (callback) => {
     listen('menu-action', (e) => callback(e.payload));
