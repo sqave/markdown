@@ -237,6 +237,8 @@ let layoutMode, rightPaneContent;
   }
 }
 
+let savedDividerRatio = parseFloat(localStorage.getItem('cogmd-divider-ratio')) || 0.5;
+
 // ===== Large file mode =====
 
 const LARGE_FILE_THRESHOLD = 200 * 1024; // 200 KB
@@ -855,6 +857,7 @@ function resetAllSettings() {
   localStorage.removeItem('cogmd-layout');
   localStorage.removeItem('cogmd-right-pane');
   localStorage.removeItem('cogmd-view-mode');
+  localStorage.removeItem('cogmd-divider-ratio');
   localStorage.removeItem('cogmd-session');
   idbSet('session', null).catch(() => {});
   location.reload();
@@ -1012,6 +1015,13 @@ document.addEventListener('mouseup', () => {
     isDragging = false;
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
+    // Persist divider ratio
+    const cols = container.style.gridTemplateColumns;
+    const m = cols.match(/([\d.]+)fr/);
+    if (m) {
+      savedDividerRatio = parseFloat(m[1]);
+      localStorage.setItem('cogmd-divider-ratio', savedDividerRatio);
+    }
   }
 });
 
@@ -1062,8 +1072,9 @@ async function applyView(layout, rightPane) {
     diffContent.style.display = 'none';
     previewContent.style.display = '';
   } else {
-    // Split mode
-    container.style.gridTemplateColumns = '1fr auto 1fr';
+    // Split mode — restore saved divider ratio
+    const r = savedDividerRatio;
+    container.style.gridTemplateColumns = `${r}fr auto ${1 - r}fr`;
 
     if (rightPane === 'preview') {
       diffContent.style.display = 'none';

@@ -467,6 +467,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_window_state::Builder::new().build())
         .manage(AppState {
             pending_file: Mutex::new(None),
         })
@@ -492,6 +493,7 @@ pub fn run() {
             let _window = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("CogMD")
                 .inner_size(1200.0, 800.0)
+                .visible(false)
                 .min_inner_size(600.0, 400.0)
                 .title_bar_style(tauri::TitleBarStyle::Overlay)
                 .hidden_title(true)
