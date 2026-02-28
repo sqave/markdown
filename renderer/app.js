@@ -1133,11 +1133,7 @@ async function startup() {
 
   applyView(layoutMode, rightPaneContent);
 
-  requestAnimationFrame(() => {
-    const splash = document.getElementById('splash');
-    splash.classList.add('hidden');
-    setTimeout(() => splash.remove(), 300);
-  });
+  window.api.showWindow();
 
   performance.mark('editor-ready');
   performance.measure('startup', 'startup-begin', 'editor-ready');

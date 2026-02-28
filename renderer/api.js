@@ -62,6 +62,8 @@ window.api = {
     window.addEventListener('cogmd-update-not-available', () => callback());
   },
 
+  showWindow: () => appWindow.show(),
+
   onFullscreenChanged: (callback) => {
     appWindow.onResized(async () => {
       const isFullscreen = await appWindow.isFullscreen();
