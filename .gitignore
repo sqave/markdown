@@ -3,3 +3,4 @@ dist/
 .DS_Store
 renderer/bundle.js
 src-tauri/target/
+.env
