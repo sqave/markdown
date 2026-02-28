@@ -4,3 +4,4 @@ dist/
 renderer/bundle.js
 src-tauri/target/
 .env
+firebase-debug.log
