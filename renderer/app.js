@@ -97,7 +97,7 @@ md.disable('lheading');
 
 // ===== Font Size =====
 
-const FONT_SIZE_MIN = 8, FONT_SIZE_MAX = 18, FONT_SIZE_DEFAULT = 10;
+const FONT_SIZE_MIN = 8, FONT_SIZE_MAX = 18, FONT_SIZE_DEFAULT = 9;
 let currentFontSize = parseInt(localStorage.getItem('cogmd-font-size'), 10) || FONT_SIZE_DEFAULT;
 const fontSizeCompartment = new Compartment();
 
@@ -503,8 +503,8 @@ function applyFontSize(size) {
   view.dispatch({
     effects: fontSizeCompartment.reconfigure(makeFontSizeTheme(currentFontSize)),
   });
-  previewEl.style.fontSize = (currentFontSize + 1) + 'px';
-  document.getElementById('diffContent').style.fontSize = (currentFontSize + 1) + 'px';
+  previewEl.style.fontSize = currentFontSize + 'px';
+  document.getElementById('diffContent').style.fontSize = currentFontSize + 'px';
 }
 
 document.getElementById('fontDecrease').addEventListener('click', () => {
@@ -528,8 +528,8 @@ document.addEventListener('keydown', (event) => {
 });
 
 // Set initial preview / diff font size
-previewEl.style.fontSize = (currentFontSize + 1) + 'px';
-document.getElementById('diffContent').style.fontSize = (currentFontSize + 1) + 'px';
+previewEl.style.fontSize = currentFontSize + 'px';
+document.getElementById('diffContent').style.fontSize = currentFontSize + 'px';
 
 // ===== Copy Button =====
 
@@ -760,6 +760,56 @@ function cycleTab(direction) {
 
 const tabBar = document.getElementById('tabBar');
 const tabNewBtn = document.getElementById('tabNewBtn');
+let draggingTabId = null;
+let dropTargetTabId = null;
+let dropPosition = null;
+let didTabDrag = false;
+let suppressTabClickUntil = 0;
+
+function clearTabDropMarkers() {
+  tabBar.querySelectorAll('.tab').forEach((el) => {
+    el.classList.remove('drop-before', 'drop-after');
+  });
+}
+
+function clearTabDraggingClass() {
+  tabBar.querySelectorAll('.tab.dragging').forEach((el) => {
+    el.classList.remove('dragging');
+  });
+}
+
+function applyTabDropMarker(el, position) {
+  el.classList.remove('drop-before', 'drop-after');
+  if (position === 'before') {
+    el.classList.add('drop-before');
+  } else {
+    el.classList.add('drop-after');
+  }
+}
+
+function moveTabInArray(tabId, targetTabId, position) {
+  if (tabId === targetTabId) return false;
+  const currentOrder = tabs.map(t => t.id);
+  const order = currentOrder.filter(id => id !== tabId);
+  const targetIndex = order.indexOf(targetTabId);
+  if (targetIndex === -1) return false;
+
+  const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex;
+  order.splice(insertIndex, 0, tabId);
+
+  let changed = false;
+  for (let i = 0; i < currentOrder.length; i++) {
+    if (currentOrder[i] !== order[i]) {
+      changed = true;
+      break;
+    }
+  }
+  if (!changed) return false;
+
+  const rank = new Map(order.map((id, index) => [id, index]));
+  tabs.sort((a, b) => rank.get(a.id) - rank.get(b.id));
+  return true;
+}
 
 function renderTabBar() {
   tabBar.querySelectorAll('.tab').forEach(el => el.remove());
@@ -772,6 +822,7 @@ function renderTabBar() {
       + ((tab.hasExternalChange || tab.notionHasExternalChange) ? ' remote-dirty' : '');
     btn.dataset.tabId = tab.id;
     btn.title = tab.filePath || tab.notionPageTitle || 'Untitled';
+    btn.draggable = true;
 
     const nameSpan = document.createElement('span');
     nameSpan.className = 'tab-name';
@@ -794,6 +845,7 @@ function renderTabBar() {
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'tab-close';
+    closeBtn.draggable = false;
     const closeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     closeSvg.setAttribute('width', '14');
     closeSvg.setAttribute('height', '14');
@@ -817,7 +869,67 @@ function renderTabBar() {
     });
     btn.appendChild(closeBtn);
 
-    btn.addEventListener('click', () => activateTab(tab.id));
+    btn.addEventListener('dragstart', (e) => {
+      draggingTabId = tab.id;
+      dropTargetTabId = null;
+      dropPosition = null;
+      didTabDrag = false;
+      clearTabDropMarkers();
+      clearTabDraggingClass();
+      btn.classList.add('dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        try {
+          e.dataTransfer.setData('text/plain', String(tab.id));
+        } catch (_) {}
+      }
+    });
+
+    btn.addEventListener('dragover', (e) => {
+      if (draggingTabId === null || draggingTabId === tab.id) return;
+      e.preventDefault();
+      didTabDrag = true;
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+
+      const rect = btn.getBoundingClientRect();
+      const position = (e.clientX - rect.left) < rect.width / 2 ? 'before' : 'after';
+      if (dropTargetTabId === tab.id && dropPosition === position) return;
+      dropTargetTabId = tab.id;
+      dropPosition = position;
+      clearTabDropMarkers();
+      applyTabDropMarker(btn, position);
+    });
+
+    btn.addEventListener('drop', (e) => {
+      if (draggingTabId === null || draggingTabId === tab.id) return;
+      e.preventDefault();
+
+      const rect = btn.getBoundingClientRect();
+      const position = dropPosition || ((e.clientX - rect.left) < rect.width / 2 ? 'before' : 'after');
+      const moved = moveTabInArray(draggingTabId, tab.id, position);
+      clearTabDropMarkers();
+      dropTargetTabId = null;
+      dropPosition = null;
+      if (moved) {
+        renderTabBar();
+        scheduleSessionSave();
+      }
+    });
+
+    btn.addEventListener('dragend', () => {
+      if (didTabDrag) suppressTabClickUntil = Date.now() + 200;
+      didTabDrag = false;
+      draggingTabId = null;
+      dropTargetTabId = null;
+      dropPosition = null;
+      clearTabDropMarkers();
+      clearTabDraggingClass();
+    });
+
+    btn.addEventListener('click', () => {
+      if (Date.now() < suppressTabClickUntil) return;
+      activateTab(tab.id);
+    });
     tabBar.insertBefore(btn, tabNewBtn);
   });
 }
