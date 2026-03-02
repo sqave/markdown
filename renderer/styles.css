@@ -159,6 +159,66 @@ html.fullscreen .titlebar {
   transition: transform 300ms ease;
 }
 
+/* ===== Display Menu ===== */
+
+.display-menu {
+  -webkit-app-region: no-drag;
+  position: relative;
+}
+
+.display-menu-toggle {
+  -webkit-app-region: no-drag;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 180ms ease, background-color 180ms ease, transform 300ms ease;
+}
+
+.display-menu-toggle:hover,
+.display-menu.open .display-menu-toggle {
+  color: var(--text-primary);
+  background: var(--selection);
+}
+
+.display-menu-toggle:active {
+  transform: scale(0.92);
+}
+
+.display-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.display-menu.open .display-menu-popover {
+  display: flex;
+}
+
+.display-menu-popover .theme-toggle,
+.display-menu-popover .font-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
 /* ===== Copy Button ===== */
 
 .copy-btn {

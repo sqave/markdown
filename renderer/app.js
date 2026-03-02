@@ -284,6 +284,8 @@ function evictStaleTabStates() {
 
 const previewEl = document.getElementById('previewContent');
 const editorPane = document.getElementById('editorPane');
+const displayMenu = document.getElementById('displayMenu');
+const displayMenuToggle = document.getElementById('displayMenuToggle');
 const themeToggle = document.getElementById('themeToggle');
 const copyBtn = document.getElementById('copyBtn');
 const openFolderBtn = document.getElementById('openFolderBtn');
@@ -473,6 +475,15 @@ function applyTheme(mode) {
   });
 }
 
+function setDisplayMenuOpen(isOpen) {
+  displayMenu.classList.toggle('open', isOpen);
+  displayMenuToggle.setAttribute('aria-expanded', String(isOpen));
+}
+
+function closeDisplayMenu() {
+  setDisplayMenuOpen(false);
+}
+
 applyTheme(themeMode);
 
 systemDarkQuery.addEventListener('change', () => {
@@ -496,8 +507,25 @@ function applyFontSize(size) {
   document.getElementById('diffContent').style.fontSize = (currentFontSize + 1) + 'px';
 }
 
-document.getElementById('fontDecrease').addEventListener('click', () => applyFontSize(currentFontSize - 1));
-document.getElementById('fontIncrease').addEventListener('click', () => applyFontSize(currentFontSize + 1));
+document.getElementById('fontDecrease').addEventListener('click', () => {
+  applyFontSize(currentFontSize - 1);
+});
+document.getElementById('fontIncrease').addEventListener('click', () => {
+  applyFontSize(currentFontSize + 1);
+});
+
+displayMenuToggle.addEventListener('click', (event) => {
+  event.stopPropagation();
+  setDisplayMenuOpen(!displayMenu.classList.contains('open'));
+});
+
+document.addEventListener('click', (event) => {
+  if (!displayMenu.contains(event.target)) closeDisplayMenu();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeDisplayMenu();
+});
 
 // Set initial preview / diff font size
 previewEl.style.fontSize = (currentFontSize + 1) + 'px';
