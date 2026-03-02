@@ -310,6 +310,8 @@ const notionTokenConnectBtn = document.getElementById('notionTokenConnectBtn');
 let notionAuth = { connected: false, workspaceName: null, botName: null };
 let notionImportInProgress = false;
 let notionSyncInProgress = false;
+let notionConnectInProgress = false;
+const notionTokenConnectDefaultLabel = notionTokenConnectBtn.textContent;
 
 function setNotionImportBusy(isBusy) {
   notionImportInProgress = isBusy;
@@ -327,6 +329,14 @@ function setNotionSyncBusy(isBusy) {
   notionSyncBtn.title = isBusy
     ? 'Syncing Notion changes...'
     : 'Check Notion page changes and sync';
+}
+
+function setNotionConnectBusy(isBusy) {
+  notionConnectInProgress = isBusy;
+  notionTokenInput.disabled = isBusy;
+  notionTokenConnectBtn.disabled = isBusy;
+  notionTokenCloseBtn.disabled = isBusy;
+  notionTokenConnectBtn.textContent = isBusy ? 'Connecting...' : notionTokenConnectDefaultLabel;
 }
 
 function makeExtensions() {
@@ -1204,29 +1214,40 @@ notionModal.addEventListener('click', (e) => {
   if (e.target === notionModal) notionModal.classList.remove('visible');
 });
 
-notionTokenCloseBtn.addEventListener('click', () => notionTokenModal.classList.remove('visible'));
+notionTokenCloseBtn.addEventListener('click', () => {
+  if (notionConnectInProgress) return;
+  notionTokenModal.classList.remove('visible');
+});
 notionTokenModal.addEventListener('click', (e) => {
+  if (notionConnectInProgress) return;
   if (e.target === notionTokenModal) notionTokenModal.classList.remove('visible');
 });
 
 notionTokenConnectBtn.addEventListener('click', async () => {
+  if (notionConnectInProgress) return;
   const token = notionTokenInput.value.trim();
   if (!token) return;
+  setNotionConnectBusy(true);
   try {
     await window.api.notionConnect(token);
     notionTokenInput.value = '';
     notionTokenModal.classList.remove('visible');
     await refreshNotionAuthStatus();
+    await loadRecentNotionPages();
   } catch (e) {
     console.error('Notion connect failed:', e);
     await window.api.confirmAction(
       `Connection failed: ${String(e)}`,
       { title: 'Notion Error', kind: 'warning', okLabel: 'OK', cancelLabel: 'Dismiss' }
     );
+  } finally {
+    setNotionConnectBusy(false);
   }
 });
 
 notionConnectCtaBtn.addEventListener('click', () => {
+  if (notionConnectInProgress) return;
+  setNotionConnectBusy(false);
   notionTokenInput.value = '';
   notionTokenModal.classList.add('visible');
   notionTokenInput.focus();

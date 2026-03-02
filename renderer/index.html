@@ -199,16 +199,13 @@
         <h2>Connect Notion</h2>
         <button id="notionTokenCloseBtn" class="notion-close-btn" type="button">Close</button>
       </div>
-      <p class="notion-help">
-        Paste your Internal Integration Secret from Notion (the one shown on your integration settings page).
-        You can create/manage it here:
-        <a href="https://www.notion.so/profile/integrations/internal" target="_blank" rel="noreferrer">notion.so/profile/integrations/internal</a>.
-        Then for each page you want to use, click `...` → `Connections` → select this integration.
-      </p>
       <div class="notion-search-row">
         <input id="notionTokenInput" type="password" placeholder="Paste internal integration secret">
         <button id="notionTokenConnectBtn" type="button">Connect</button>
       </div>
+      <p class="notion-access-hint">
+        Make sure to enable content access for each page you want to use: open the page in Notion, click `...` → `Connections` → select this integration.
+      </p>
     </div>
   </div>
 
