@@ -79,6 +79,13 @@ function renderPluginList() {
     nameRow.appendChild(name);
     nameRow.appendChild(version);
 
+    if (plugin.beta) {
+      const badge = document.createElement('span');
+      badge.className = 'manage-plugins-badge-beta';
+      badge.textContent = 'beta';
+      nameRow.appendChild(badge);
+    }
+
     const desc = document.createElement('div');
     desc.className = 'manage-plugins-desc';
     desc.textContent = plugin.description || '';

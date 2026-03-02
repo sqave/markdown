@@ -65,6 +65,8 @@ jobs:
 
       - run: npm install
 
+      - run: npm test
+
       - uses: tauri-apps/tauri-action@v0
         id: tauri
         env:

@@ -1187,7 +1187,7 @@ html.fullscreen .titlebar {
 
 .manage-plugins-name-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
 }
 
@@ -1200,6 +1200,17 @@ html.fullscreen .titlebar {
 .manage-plugins-version {
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.manage-plugins-badge-beta {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #f0a050;
+  border: 1px solid #f0a05066;
+  border-radius: 4px;
+  padding: 1px 5px;
 }
 
 .manage-plugins-desc {

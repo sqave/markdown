@@ -17,7 +17,10 @@
 ## Release Process
 
 ```sh
-# 1) On develop, bump version in all three files (same X.Y.Z in each):
+# 1) Run tests before releasing:
+npm test
+
+# 2) On develop, bump version in all three files (same X.Y.Z in each):
 #    - package.json
 #    - src-tauri/tauri.conf.json
 #    - src-tauri/Cargo.toml
@@ -26,7 +29,7 @@ git add -A
 git commit -m "<description of changes>"
 git push origin
 
-# 2) Merge develop into main, then push
+# 3) Merge develop into main, then push
 git checkout main
 git merge develop
 git push origin

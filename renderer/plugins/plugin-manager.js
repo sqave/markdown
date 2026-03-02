@@ -11,11 +11,12 @@ const BUILTIN_PLUGINS = {
     module: notionPlugin,
     manifest: {
       id: 'notion',
-      name: 'Notion Sync',
-      version: '1.0.0',
+      name: 'Notion',
+      version: '0.1.0',
       description: 'Sync markdown documents with Notion pages',
       author: 'CogMD',
       builtin: true,
+      beta: true,
     },
   },
 };
