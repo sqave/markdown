@@ -22,7 +22,7 @@ Follow this routine exactly so `develop` and `main` stay in sync:
 # 1) On develop, commit all current release-ready work
 git checkout develop
 git add -A
-git commit -m "Release prep"
+git commit -m "Prepare release: <short summary of shipped changes>"
 
 # 2) Bump version in all three files (same X.Y.Z in each):
 #    - package.json
@@ -33,7 +33,7 @@ git commit -m "Release prep"
 #    - PATCH for bug fixes
 #    - MAJOR only when explicitly requested by the user
 git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
-git commit -m "Bump version to vX.Y.Z"
+git commit -m "Release vX.Y.Z: <short summary of shipped changes>"
 
 # 3) Push develop to remote
 git push origin develop
@@ -48,6 +48,10 @@ git checkout develop
 git merge --no-ff main
 git push origin develop
 ```
+
+Commit message rule for releases:
+- Include a concise summary of what shipped.
+- Do not use version-only messages (for example, avoid `Release vX.Y.Z` with no context).
 
 - GitHub Actions (`.github/workflows/release.yml`) triggers on push to `main`
 - Builds dual-arch `.dmg` + updater assets (`.app.tar.gz`, `.sig`, `latest.json`) via `tauri-action`
