@@ -503,6 +503,30 @@ html.fullscreen .titlebar {
   background: var(--bg-primary);
 }
 
+.tab.dragging {
+  opacity: 0.55;
+}
+
+.tab.drop-before::before,
+.tab.drop-after::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.tab.drop-before::before {
+  left: -1px;
+}
+
+.tab.drop-after::after {
+  right: -1px;
+}
+
 .tab-name {
   overflow: hidden;
   text-overflow: ellipsis;
