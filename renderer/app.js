@@ -10,6 +10,7 @@ import { tags } from '@lezer/highlight';
 import markdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
 import morphdom from 'morphdom';
+import { threeWayMerge } from './merge-engine.js';
 
 // ===== Performance instrumentation =====
 
@@ -286,6 +287,7 @@ const editorPane = document.getElementById('editorPane');
 const themeToggle = document.getElementById('themeToggle');
 const copyBtn = document.getElementById('copyBtn');
 const openFolderBtn = document.getElementById('openFolderBtn');
+const syncBtn = document.getElementById('syncBtn');
 const layoutBtns = document.querySelectorAll('.mode-btn[data-layout]');
 const rightBtns = document.querySelectorAll('.mode-btn[data-right]');
 
@@ -465,9 +467,21 @@ openFolderBtn.addEventListener('click', async () => {
   await handleOpenContainingFolder();
 });
 
+syncBtn.addEventListener('click', async () => {
+  await handleSyncCheck();
+});
+
 function updateOpenFolderButton() {
   const hasFileOnDisk = Boolean(currentFilePath);
   openFolderBtn.classList.toggle('hidden', !hasFileOnDisk);
+}
+
+function updateSyncButton() {
+  const tab = tabs.find(t => t.id === activeTabId);
+  const hasFileOnDisk = Boolean(currentFilePath);
+  const hasExternalChange = Boolean(tab && tab.hasExternalChange);
+  syncBtn.classList.toggle('hidden', !hasFileOnDisk);
+  syncBtn.classList.toggle('warn', hasExternalChange);
 }
 
 async function handleOpenContainingFolder() {
@@ -483,11 +497,20 @@ async function handleOpenContainingFolder() {
 
 function updateTitle() {
   updateOpenFolderButton();
+  updateSyncButton();
   const name = currentFilePath
     ? currentFilePath.split('/').pop()
     : 'Untitled';
   const prefix = isDirty ? '\u25cf ' : '';
   window.api.setTitle(`${prefix}${name} \u2014 CogMD`);
+}
+
+function replaceEditorContent(nextContent) {
+  isTabSwitching = true;
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: nextContent },
+  });
+  isTabSwitching = false;
 }
 
 // ===== Tab Core Functions =====
@@ -559,6 +582,7 @@ function createTab(filePath, content) {
     filePath: filePath || null,
     content: content || '',
     isDirty: false,
+    hasExternalChange: false,
     scrollTop: 0,
     selectionMain: { anchor: 0, head: 0 },
     lastSavedContent: content || '',
@@ -615,7 +639,10 @@ function renderTabBar() {
 
   tabs.forEach(tab => {
     const btn = document.createElement('button');
-    btn.className = 'tab' + (tab.id === activeTabId ? ' active' : '') + (tab.isDirty ? ' dirty' : '');
+    btn.className = 'tab'
+      + (tab.id === activeTabId ? ' active' : '')
+      + (tab.isDirty ? ' dirty' : '')
+      + (tab.hasExternalChange ? ' remote-dirty' : '');
     btn.dataset.tabId = tab.id;
     btn.title = tab.filePath || 'Untitled';
 
@@ -627,6 +654,10 @@ function renderTabBar() {
     const dirtyDot = document.createElement('span');
     dirtyDot.className = 'tab-dirty';
     btn.appendChild(dirtyDot);
+
+    const remoteDirtyDot = document.createElement('span');
+    remoteDirtyDot.className = 'tab-remote-dirty';
+    btn.appendChild(remoteDirtyDot);
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'tab-close';
@@ -669,6 +700,78 @@ tabBar.addEventListener('wheel', (e) => {
 
 // ===== File Ops =====
 
+function setActiveTabState({ content, dirty, lastSavedContent, hasExternalChange }) {
+  const tab = tabs.find(t => t.id === activeTabId);
+  if (!tab) return;
+
+  replaceEditorContent(content);
+  tab.content = content;
+  tab.isDirty = dirty;
+  tab.lastSavedContent = lastSavedContent;
+  tab.hasExternalChange = hasExternalChange;
+
+  isDirty = dirty;
+  window.api.setDocumentEdited(dirty);
+  updateTitle();
+  renderTabBar();
+
+  if (layoutMode === 'split' && rightPaneContent === 'diff') {
+    scheduleDiffRender();
+  } else {
+    renderPreviewImmediate(content);
+  }
+
+  scheduleSessionSave();
+}
+
+async function handleSyncCheck() {
+  const tab = tabs.find(t => t.id === activeTabId);
+  if (!tab || !tab.filePath) return;
+
+  let disk;
+  try {
+    disk = await window.api.readFileSnapshot(tab.filePath);
+  } catch (e) {
+    console.error('Sync check failed:', e);
+    await window.api.confirmAction(
+      'Could not read the file from disk for sync.',
+      { title: 'Sync Failed', kind: 'warning', okLabel: 'OK', cancelLabel: 'Dismiss' }
+    );
+    return;
+  }
+
+  const diskContent = disk.content;
+  const baseContent = tab.lastSavedContent || '';
+  const mineContent = view.state.doc.toString();
+
+  if (diskContent === baseContent) {
+    tab.hasExternalChange = false;
+    updateSyncButton();
+    renderTabBar();
+    scheduleSessionSave();
+    return;
+  }
+
+  tab.hasExternalChange = true;
+  updateSyncButton();
+  renderTabBar();
+  scheduleSessionSave();
+
+  const shouldSync = await window.api.confirmAction(
+    'External changes were detected on disk. Sync changes now?',
+    { title: 'External Changes Detected', kind: 'warning', okLabel: 'Sync', cancelLabel: 'Later' }
+  );
+  if (!shouldSync) return;
+
+  const merge = threeWayMerge(baseContent, mineContent, diskContent);
+  setActiveTabState({
+    content: merge.mergedText,
+    dirty: merge.mergedText !== diskContent,
+    lastSavedContent: diskContent,
+    hasExternalChange: false,
+  });
+}
+
 async function handleNew() {
   snapshotCurrentTab();
   const tab = createTab(null, '');
@@ -687,11 +790,10 @@ async function handleOpen() {
 
   const active = tabs.find(t => t.id === activeTabId);
   if (active && !active.isDirty && !active.filePath && view.state.doc.length === 0) {
-    isTabSwitching = true;
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: result.content } });
-    isTabSwitching = false;
+    replaceEditorContent(result.content);
     active.filePath = result.filePath;
     active.content = result.content;
+    active.hasExternalChange = false;
     active.lastSavedContent = result.content;
     currentFilePath = result.filePath;
     isDirty = false;
@@ -716,10 +818,54 @@ async function handleSave() {
   const content = view.state.doc.toString();
   const tab = tabs.find(t => t.id === activeTabId);
   if (currentFilePath) {
+    let disk = null;
+    try {
+      disk = await window.api.readFileSnapshot(currentFilePath);
+    } catch (e) {
+      console.error('Pre-save sync check failed:', e);
+    }
+
+    if (disk && tab) {
+      const diskContent = disk.content;
+      const baseContent = tab.lastSavedContent || '';
+      if (diskContent !== baseContent) {
+        tab.hasExternalChange = true;
+        updateSyncButton();
+        renderTabBar();
+        scheduleSessionSave();
+
+        const doSync = await window.api.confirmAction(
+          'External changes were detected on disk. Sync changes instead of overwrite?',
+          { title: 'External Changes Detected', kind: 'warning', okLabel: 'Sync Changes', cancelLabel: 'More Options' }
+        );
+
+        if (doSync) {
+          const merge = threeWayMerge(baseContent, content, diskContent);
+          setActiveTabState({
+            content: merge.mergedText,
+            dirty: merge.mergedText !== diskContent,
+            lastSavedContent: diskContent,
+            hasExternalChange: false,
+          });
+          return;
+        }
+
+        const doOverwrite = await window.api.confirmAction(
+          'Overwrite disk changes with your current editor content?',
+          { title: 'Save Options', kind: 'warning', okLabel: 'Overwrite', cancelLabel: 'Cancel' }
+        );
+
+        if (!doOverwrite) {
+          return;
+        }
+      }
+    }
+
     await window.api.saveFile(currentFilePath, content);
     isDirty = false;
     if (tab) {
       tab.isDirty = false;
+      tab.hasExternalChange = false;
       tab.lastSavedContent = content;
     }
     window.api.setDocumentEdited(false);
@@ -741,6 +887,7 @@ async function handleSaveAs() {
     if (tab) {
       tab.filePath = filePath;
       tab.isDirty = false;
+      tab.hasExternalChange = false;
       tab.lastSavedContent = content;
     }
     window.api.setDocumentEdited(false);
@@ -805,6 +952,7 @@ function saveSession() {
       filePath: t.filePath,
       content: t.editorState ? t.editorState.doc.toString() : (t.content || ''),
       isDirty: t.isDirty,
+      hasExternalChange: Boolean(t.hasExternalChange),
       scrollTop: t.scrollTop,
       selectionMain: t.selectionMain,
       lastSavedContent: t.lastSavedContent || '',
@@ -840,6 +988,7 @@ async function restoreSession() {
 
   tabs = data.tabs.map(t => ({
     ...t,
+    hasExternalChange: Boolean(t.hasExternalChange),
     lastSavedContent: t.lastSavedContent ?? t.content ?? '',
   }));
   nextTabId = data.nextTabId || (Math.max(...tabs.map(t => t.id)) + 1);

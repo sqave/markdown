@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::process::Command;
 use std::sync::Mutex;
+use std::time::UNIX_EPOCH;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder},
     window::Color,
@@ -29,6 +30,16 @@ struct FileResult {
     content: String,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+struct FileSnapshot {
+    #[serde(rename = "filePath")]
+    file_path: String,
+    content: String,
+    #[serde(rename = "modifiedMs")]
+    modified_ms: u128,
+    size: u64,
+}
+
 // -- Tauri commands --
 
 #[tauri::command]
@@ -38,7 +49,6 @@ async fn open_file(app: AppHandle) -> Result<Option<FileResult>, String> {
     let file_path = app
         .dialog()
         .file()
-        .add_filter("All Files", &["*"])
         .blocking_pick_file();
 
     match file_path {
@@ -68,7 +78,6 @@ async fn save_file_as(app: AppHandle, content: String) -> Result<Option<String>,
     let file_path = app
         .dialog()
         .file()
-        .add_filter("All Files", &["*"])
         .set_file_name("untitled.md")
         .blocking_save_file();
 
@@ -80,6 +89,25 @@ async fn save_file_as(app: AppHandle, content: String) -> Result<Option<String>,
         }
         None => Ok(None),
     }
+}
+
+#[tauri::command]
+async fn read_file_snapshot(file_path: String) -> Result<FileSnapshot, String> {
+    let content = fs::read_to_string(&file_path).map_err(|e| format!("Failed to read file: {e}"))?;
+    let metadata = fs::metadata(&file_path).map_err(|e| format!("Failed to stat file: {e}"))?;
+    let modified_ms = metadata
+        .modified()
+        .ok()
+        .and_then(|mtime| mtime.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+
+    Ok(FileSnapshot {
+        file_path,
+        content,
+        modified_ms,
+        size: metadata.len(),
+    })
 }
 
 #[tauri::command]
@@ -474,6 +502,7 @@ pub fn run() {
             open_file,
             save_file,
             save_file_as,
+            read_file_snapshot,
             set_window_title,
             set_document_edited,
             open_file_folder,
