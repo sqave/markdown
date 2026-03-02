@@ -290,12 +290,14 @@ const previewEl = document.getElementById('previewContent');
 const editorPane = document.getElementById('editorPane');
 const displayMenu = document.getElementById('displayMenu');
 const displayMenuToggle = document.getElementById('displayMenuToggle');
+const splitMenu = document.getElementById('splitMenu');
+const splitMenuToggle = document.getElementById('splitMenuToggle');
 const themeToggle = document.getElementById('themeToggle');
 const copyBtn = document.getElementById('copyBtn');
 const openFolderBtn = document.getElementById('openFolderBtn');
 const syncBtn = document.getElementById('syncBtn');
 const layoutBtns = document.querySelectorAll('.mode-btn[data-layout]');
-const rightBtns = document.querySelectorAll('.mode-btn[data-right]');
+const rightBtns = document.querySelectorAll('.split-option-btn[data-right]');
 
 function focusNativeReplaceInput(view) {
   openSearchPanel(view);
@@ -456,6 +458,15 @@ function closeDisplayMenu() {
   setDisplayMenuOpen(false);
 }
 
+function setSplitMenuOpen(isOpen) {
+  splitMenu.classList.toggle('open', isOpen);
+  splitMenuToggle.setAttribute('aria-expanded', String(isOpen));
+}
+
+function closeSplitMenu() {
+  setSplitMenuOpen(false);
+}
+
 applyTheme(themeMode);
 
 systemDarkQuery.addEventListener('change', () => {
@@ -488,15 +499,19 @@ document.getElementById('fontIncrease').addEventListener('click', () => {
 
 displayMenuToggle.addEventListener('click', (event) => {
   event.stopPropagation();
+  closeSplitMenu();
   setDisplayMenuOpen(!displayMenu.classList.contains('open'));
 });
 
 document.addEventListener('click', (event) => {
   if (!displayMenu.contains(event.target)) closeDisplayMenu();
+  if (!splitMenu.contains(event.target)) closeSplitMenu();
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeDisplayMenu();
+  if (event.key !== 'Escape') return;
+  closeDisplayMenu();
+  closeSplitMenu();
 });
 
 // Ensure Cmd/Ctrl+F always opens CodeMirror's native search panel,
@@ -1472,19 +1487,25 @@ async function applyView(layout, rightPane) {
 
 // Layout buttons: set layout mode
 layoutBtns.forEach(btn => {
-  btn.addEventListener('click', () => applyView(btn.dataset.layout, rightPaneContent));
+  if (btn === splitMenuToggle) return;
+  btn.addEventListener('click', () => {
+    closeSplitMenu();
+    applyView(btn.dataset.layout, rightPaneContent);
+  });
 });
 
-// Right-pane buttons: set content type and flip to split if in single mode
+splitMenuToggle.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (layoutMode !== 'split') applyView('split', rightPaneContent);
+  closeDisplayMenu();
+  setSplitMenuOpen(!splitMenu.classList.contains('open'));
+});
+
+// Split dropdown options: set right pane content and ensure split layout
 rightBtns.forEach(btn => {
   btn.addEventListener('click', () => {
-    const newRight = btn.dataset.right;
-    // If already in split+this, toggle to single
-    if (layoutMode === 'split' && rightPaneContent === newRight) {
-      applyView('single', rightPaneContent);
-    } else {
-      applyView('split', newRight);
-    }
+    applyView('split', btn.dataset.right);
+    closeSplitMenu();
   });
 });
 

@@ -438,6 +438,14 @@ html.fullscreen .titlebar {
   transition: color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
 }
 
+.split-menu {
+  position: relative;
+}
+
+.split-menu-toggle {
+  gap: 0;
+}
+
 .mode-btn:hover {
   color: var(--text-secondary);
 }
@@ -452,12 +460,53 @@ html.fullscreen .titlebar {
   opacity: 0.4;
 }
 
-.mode-divider {
-  width: 1px;
-  height: 14px;
-  background: var(--border);
-  margin: 0 2px;
-  flex-shrink: 0;
+.split-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.split-menu.open .split-menu-popover {
+  display: flex;
+}
+
+.split-option-btn {
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.split-option-btn:hover {
+  color: var(--text-primary);
+  background: var(--selection);
+}
+
+.split-option-btn.active {
+  color: var(--text-primary);
+  background: var(--selection);
+}
+
+.split-option-btn.dimmed {
+  opacity: 0.5;
 }
 
 /* ===== Tabs (Chrome-style) ===== */
