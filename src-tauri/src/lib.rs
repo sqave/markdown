@@ -372,6 +372,56 @@ async fn extract_vsix(app: AppHandle, vsix_path: String) -> Result<ExtensionInfo
     })
 }
 
+// -- Plugin registry --
+
+fn plugin_registry_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .home_dir()
+        .map_err(|e| format!("Cannot find home dir: {e}"))?
+        .join(".cogmd")
+        .join("plugins");
+    fs::create_dir_all(&dir).map_err(|e| format!("Cannot create plugins dir: {e}"))?;
+    Ok(dir.join("registry.json"))
+}
+
+#[tauri::command]
+async fn read_plugin_registry(app: AppHandle) -> Result<String, String> {
+    let path = plugin_registry_path(&app)?;
+    if !path.exists() {
+        return Ok(r#"{"plugins":{}}"#.to_string());
+    }
+    fs::read_to_string(&path).map_err(|e| format!("Cannot read plugin registry: {e}"))
+}
+
+#[tauri::command]
+async fn write_plugin_registry(app: AppHandle, data: String) -> Result<bool, String> {
+    let path = plugin_registry_path(&app)?;
+    fs::write(&path, &data).map_err(|e| format!("Cannot write plugin registry: {e}"))?;
+    Ok(true)
+}
+
+fn is_plugin_enabled(app: &AppHandle, plugin_id: &str) -> bool {
+    let path = match plugin_registry_path(app) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+    if !path.exists() {
+        return false;
+    }
+    let raw = match fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let parsed: serde_json::Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    parsed["plugins"][plugin_id]["enabled"]
+        .as_bool()
+        .unwrap_or(false)
+}
+
 // -- Notion integration --
 
 fn notion_config_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -864,6 +914,9 @@ async fn notion_auth_status_command(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<NotionAuthStatus, String> {
+    if !is_plugin_enabled(&app, "notion") {
+        return Err("Notion plugin is not enabled".to_string());
+    }
     let auth = get_notion_auth(&app, &state).ok();
     Ok(notion_auth_status(auth.as_ref()))
 }
@@ -874,6 +927,9 @@ async fn notion_connect(
     state: State<'_, AppState>,
     token: String,
 ) -> Result<NotionAuthStatus, String> {
+    if !is_plugin_enabled(&app, "notion") {
+        return Err("Notion plugin is not enabled".to_string());
+    }
     let token = token.trim().to_string();
     if token.is_empty() {
         return Err("Notion token is required.".to_string());
@@ -902,6 +958,9 @@ async fn notion_connect(
 
 #[tauri::command]
 async fn notion_disconnect(app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
+    if !is_plugin_enabled(&app, "notion") {
+        return Err("Notion plugin is not enabled".to_string());
+    }
     clear_notion_token_in_cogmd_env(&app)?;
     clear_notion_auth_metadata_on_disk(&app)?;
     *state.notion_env_disabled.lock().unwrap() = true;
@@ -915,6 +974,9 @@ async fn notion_search_pages(
     state: State<'_, AppState>,
     query: String,
 ) -> Result<Vec<NotionPageSummary>, String> {
+    if !is_plugin_enabled(&app, "notion") {
+        return Err("Notion plugin is not enabled".to_string());
+    }
     let auth = get_notion_auth(&app, &state)?;
     let trimmed = query.trim().to_string();
     let page_size = if trimmed.is_empty() { 5 } else { 20 };
@@ -959,6 +1021,9 @@ async fn notion_pull_page(
     state: State<'_, AppState>,
     page_id: String,
 ) -> Result<NotionPageDocument, String> {
+    if !is_plugin_enabled(&app, "notion") {
+        return Err("Notion plugin is not enabled".to_string());
+    }
     let auth = get_notion_auth(&app, &state)?;
     let page = notion_api("GET", &format!("/pages/{page_id}"), &auth.token, None)?;
     let blocks = notion_fetch_all_children(&auth.token, &page_id)?;
@@ -977,6 +1042,9 @@ async fn notion_push_page(
     page_id: String,
     content: String,
 ) -> Result<NotionPageDocument, String> {
+    if !is_plugin_enabled(&app, "notion") {
+        return Err("Notion plugin is not enabled".to_string());
+    }
     let auth = get_notion_auth(&app, &state)?;
     let existing = notion_fetch_all_children(&auth.token, &page_id)?;
     for block in existing {
@@ -1102,6 +1170,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .build(app)?;
     let view_reset_settings =
         MenuItemBuilder::with_id("menu_reset_settings", "Reset All Settings").build(app)?;
+    let view_plugins =
+        MenuItemBuilder::with_id("menu_plugins", "Plugins…").build(app)?;
 
     let view_menu = SubmenuBuilder::new(app, "View")
         .item(&view_editor)
@@ -1118,6 +1188,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .item(&PredefinedMenuItem::fullscreen(app, None)?)
         .separator()
         .item(&view_reset_settings)
+        .separator()
+        .item(&view_plugins)
         .build()?;
 
     // Window submenu
@@ -1155,6 +1227,7 @@ fn handle_menu_event(app: &AppHandle, event: &tauri::menu::MenuEvent) {
         "menu_font_decrease" => "fontDecrease",
         "menu_font_reset" => "fontReset",
         "menu_reset_settings" => "resetSettings",
+        "menu_plugins" => "managePlugins",
         _ => return,
     };
 
@@ -1198,6 +1271,8 @@ pub fn run() {
             notion_search_pages,
             notion_pull_page,
             notion_push_page,
+            read_plugin_registry,
+            write_plugin_registry,
         ])
         .setup(|app| {
             let menu = build_menu(app.handle())?;
