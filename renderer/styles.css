@@ -609,7 +609,15 @@ html.fullscreen .titlebar {
 .editor-pane {
   overflow: hidden;
   background: var(--bg-editor);
+  position: relative;
   transition: background-color 180ms ease;
+}
+
+.editor-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 6;
 }
 
 .editor-pane .cm-editor {
