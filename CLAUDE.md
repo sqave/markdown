@@ -28,6 +28,10 @@ git commit -m "Release prep"
 #    - package.json
 #    - src-tauri/tauri.conf.json
 #    - src-tauri/Cargo.toml
+# Version rule:
+#    - MINOR for new features
+#    - PATCH for bug fixes
+#    - MAJOR only when explicitly requested by the user
 git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
 git commit -m "Bump version to vX.Y.Z"
 
@@ -38,6 +42,11 @@ git push origin develop
 git checkout main
 git merge --no-ff develop
 git push origin main
+
+# 5) Merge main back into develop, then push develop
+git checkout develop
+git merge --no-ff main
+git push origin develop
 ```
 
 - GitHub Actions (`.github/workflows/release.yml`) triggers on push to `main`
