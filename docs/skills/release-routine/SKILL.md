@@ -13,26 +13,27 @@ Use this workflow for every normal release.
 2. Bump version in all three files to the same `X.Y.Z`:
 `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`.
 3. Version policy: use `MINOR` for new features, `PATCH` for bug fixes, and `MAJOR` only when explicitly requested by the user.
-4. Commit the version bump on `develop`.
-5. Push `develop` to `origin`.
-6. Merge `develop` into `main`.
-7. Push `main` to `origin`.
-8. Merge `main` back into `develop`.
-9. Push `develop` again to keep both branches fully aligned.
+4. Use informative release commit messages that summarize shipped changes. Do not use a version-only message.
+5. Commit the version bump on `develop`.
+6. Push `develop` to `origin`.
+7. Merge `develop` into `main`.
+8. Push `main` to `origin`.
+9. Merge `main` back into `develop`.
+10. Push `develop` again to keep both branches fully aligned.
 
 ## Commands
 
 ```sh
 git checkout develop
 git add -A
-git commit -m "Release prep"
+git commit -m "Prepare release: <short summary of shipped changes>"
 
 # edit version in:
 # - package.json
 # - src-tauri/tauri.conf.json
 # - src-tauri/Cargo.toml
 git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
-git commit -m "Bump version to vX.Y.Z"
+git commit -m "Release vX.Y.Z: <short summary of shipped changes>"
 
 git push origin develop
 

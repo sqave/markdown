@@ -6,13 +6,15 @@ CogMD is a native macOS app that stays out of your way. No accounts, no cloud, n
 
 ## Install
 
-Download the latest `.dmg` from [Releases](https://github.com/sqave/markdown/releases), open it, and drag CogMD to Applications.
+1. Download the latest `.dmg` from [Releases](https://github.com/sqave/markdown/releases), open it, and drag CogMD to Applications.
 
-Since the app isn't signed with an Apple Developer certificate, macOS will block it on first launch. Run this once to allow it:
+2. Since the app isn't signed with an Apple Developer certificate, macOS will block it on first launch (it will say its Broken or Damaged). To allow it, Open Terminal and then run:
 
 ```sh
-sudo xattr -cr /Applications/CogMD.app
+xattr -cr /Applications/CogMD.app
 ```
+
+If that didn't work, you might need to add `sudo` in front of the command.
 
 ## Features
 
