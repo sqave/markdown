@@ -14,7 +14,7 @@ const BUILTIN_PLUGINS = {
       name: 'Notion',
       version: '0.1.0',
       description: 'Sync markdown documents with Notion pages',
-      author: 'CogMD',
+      author: 'Cog',
       builtin: true,
       beta: true,
     },

@@ -1,6 +1,6 @@
 ---
 name: release-routine
-description: Run the standard CogMD release git flow: bump version on develop, commit, push, then merge into main and push.
+description: Run the standard Cog release git flow: bump version on develop, commit, push, then merge into main and push.
 ---
 
 # Release Routine

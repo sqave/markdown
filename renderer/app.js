@@ -534,7 +534,7 @@ function updateTitle() {
     ? currentFilePath.split('/').pop()
     : 'Untitled';
   const prefix = isDirty ? '\u25cf ' : '';
-  window.api.setTitle(`${prefix}${name} \u2014 CogMD`);
+  window.api.setTitle(`${prefix}${name} \u2014 Cog`);
 }
 
 function replaceEditorContent(nextContent) {

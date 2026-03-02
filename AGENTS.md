@@ -1,7 +1,7 @@
 ## Local Skills
 
 ### Available skills
-- release-routine: Standard CogMD release git flow. Use when asked to deploy/release a new version and keep `develop` and `main` in sync. (file: /Users/sxyz/dev/o/markdown/docs/skills/release-routine/SKILL.md)
+- release-routine: Standard Cog release git flow. Use when asked to deploy/release a new version and keep `develop` and `main` in sync. (file: /Users/sxyz/dev/o/markdown/docs/skills/release-routine/SKILL.md)
 
 ## Release Rule
 

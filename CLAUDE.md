@@ -1,4 +1,4 @@
-# CogMD
+# Cog
 
 ## Architecture
 

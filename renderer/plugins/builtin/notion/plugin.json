@@ -3,7 +3,7 @@
   "name": "Notion",
   "version": "0.1.0",
   "description": "Sync markdown documents with Notion pages",
-  "author": "CogMD",
+  "author": "Cog",
   "main": "index.js",
   "icon": "icon.svg"
 }

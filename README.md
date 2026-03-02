@@ -1,17 +1,17 @@
-# CogMD
+# Cog
 
 A minimal markdown editor. Write, preview, done.
 
-CogMD is a native macOS app that stays out of your way. No accounts, no cloud, no bloat — just a fast editor with live preview and syntax highlighting.
+Cog is a native macOS app that stays out of your way. No accounts, no cloud, no bloat — just a fast editor with live preview and syntax highlighting.
 
 ## Install
 
-1. Download the latest `.dmg` from [Releases](https://github.com/sqave/markdown/releases), open it, and drag CogMD to Applications.
+1. Download the latest `.dmg` from [Releases](https://github.com/sqave/markdown/releases), open it, and drag Cog to Applications.
 
 2. Since the app isn't signed with an Apple Developer certificate, macOS will block it on first launch (it will say its Broken or Damaged). To allow it, Open Terminal and then run:
 
 ```sh
-xattr -cr /Applications/CogMD.app
+xattr -cr /Applications/Cog.app
 ```
 
 If that didn't work, you might need to add `sudo` in front of the command.
