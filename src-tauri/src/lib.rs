@@ -1104,15 +1104,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     let file_open_folder = MenuItemBuilder::with_id("menu_open_folder", "Open Containing Folder")
         .accelerator("CmdOrCtrl+Shift+O")
         .build(app)?;
-    let file_close_tab = MenuItemBuilder::with_id("menu_close_tab", "Close Tab")
-        .accelerator("CmdOrCtrl+W")
-        .build(app)?;
-    let file_next_tab = MenuItemBuilder::with_id("menu_next_tab", "Next Tab")
-        .accelerator("CmdOrCtrl+Shift+]")
-        .build(app)?;
-    let file_prev_tab = MenuItemBuilder::with_id("menu_prev_tab", "Previous Tab")
-        .accelerator("CmdOrCtrl+Shift+[")
-        .build(app)?;
+    let file_plugins =
+        MenuItemBuilder::with_id("menu_plugins", "Plugins…").build(app)?;
     let file_check_updates =
         MenuItemBuilder::with_id("menu_check_updates", "Check for Updates…").build(app)?;
 
@@ -1124,11 +1117,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .item(&file_save_as)
         .item(&file_open_folder)
         .separator()
-        .item(&file_close_tab)
-        .separator()
-        .item(&file_next_tab)
-        .item(&file_prev_tab)
-        .separator()
+        .item(&file_plugins)
         .item(&file_check_updates)
         .build()?;
 
@@ -1168,10 +1157,17 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     let view_font_reset = MenuItemBuilder::with_id("menu_font_reset", "Reset Font Size")
         .accelerator("CmdOrCtrl+0")
         .build(app)?;
+    let view_close_tab = MenuItemBuilder::with_id("menu_close_tab", "Close Tab")
+        .accelerator("CmdOrCtrl+W")
+        .build(app)?;
+    let view_next_tab = MenuItemBuilder::with_id("menu_next_tab", "Next Tab")
+        .accelerator("CmdOrCtrl+Shift+]")
+        .build(app)?;
+    let view_prev_tab = MenuItemBuilder::with_id("menu_prev_tab", "Previous Tab")
+        .accelerator("CmdOrCtrl+Shift+[")
+        .build(app)?;
     let view_reset_settings =
         MenuItemBuilder::with_id("menu_reset_settings", "Reset All Settings").build(app)?;
-    let view_plugins =
-        MenuItemBuilder::with_id("menu_plugins", "Plugins…").build(app)?;
 
     let view_menu = SubmenuBuilder::new(app, "View")
         .item(&view_editor)
@@ -1185,11 +1181,13 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .item(&view_font_decrease)
         .item(&view_font_reset)
         .separator()
+        .item(&view_close_tab)
+        .item(&view_next_tab)
+        .item(&view_prev_tab)
+        .separator()
         .item(&PredefinedMenuItem::fullscreen(app, None)?)
         .separator()
         .item(&view_reset_settings)
-        .separator()
-        .item(&view_plugins)
         .build()?;
 
     // Window submenu
