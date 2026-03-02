@@ -74,7 +74,8 @@ Plugin support is a work in progress for generic VSIX plugins.
 
 This build includes a first custom plugin for Notion:
 - Open the Notion button in the titlebar.
-- Connect with a Notion internal integration secret.
+- Use `NOTION_TOKEN` via environment variables (for example `NOTION_TOKEN=... npm run dev`).
+- If you connect from the UI, the app stores `NOTION_TOKEN` in `~/.cogmd/.env`.
 - Search pages and click `Link` to attach a page to the current tab.
 - Use the Notion sync button (or `Cmd+S` on a linked tab) to sync.
 

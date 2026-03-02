@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::env;
 use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
@@ -17,6 +20,7 @@ use tauri::{
 struct AppState {
     pending_file: Mutex<Option<PendingFile>>,
     notion_auth: Mutex<Option<NotionAuth>>,
+    notion_env_disabled: Mutex<bool>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -54,15 +58,6 @@ struct NotionAuth {
 
 #[derive(Clone, Serialize, Deserialize)]
 struct NotionAuthDisk {
-    #[serde(rename = "workspaceName")]
-    workspace_name: Option<String>,
-    #[serde(rename = "botName")]
-    bot_name: Option<String>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-struct LegacyNotionAuthDisk {
-    token: Option<String>,
     #[serde(rename = "workspaceName")]
     workspace_name: Option<String>,
     #[serde(rename = "botName")]
@@ -393,48 +388,110 @@ fn notion_auth_file(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(notion_config_dir(app)?.join("notion-auth.json"))
 }
 
-fn notion_keychain_service_name(app: &AppHandle) -> String {
-    format!("{}.notion", app.config().identifier)
+fn notion_env_file(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(notion_config_dir(app)?.join(".env"))
 }
 
-fn notion_token_entry(app: &AppHandle) -> Result<keyring::Entry, String> {
-    keyring::Entry::new(&notion_keychain_service_name(app), "integration_token")
-        .map_err(|e| format!("Cannot initialize system keychain entry for Notion token: {e}"))
+fn notion_env_keys_file(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(notion_config_dir(app)?.join(".env.keys"))
 }
 
-fn load_notion_token_from_keychain(app: &AppHandle) -> Result<Option<String>, String> {
-    let entry = notion_token_entry(app)?;
-    match entry.get_password() {
-        Ok(token) => Ok(Some(token)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(format!(
-            "Cannot access system keychain for Notion token. Please check OS keychain permissions and try again: {e}"
-        )),
+fn load_notion_token_from_env() -> Option<String> {
+    if let Ok(value) = env::var("NOTION_TOKEN") {
+        let token = value.trim().to_string();
+        if !token.is_empty() {
+            return Some(token);
+        }
     }
+    None
 }
 
-fn save_notion_token_to_keychain(app: &AppHandle, token: &str) -> Result<(), String> {
-    let entry = notion_token_entry(app)?;
-    entry
-        .set_password(token)
-        .map_err(|e| format!("Cannot save Notion token to system keychain: {e}"))
-}
-
-fn clear_notion_token_in_keychain(app: &AppHandle) -> Result<(), String> {
-    let entry = notion_token_entry(app)?;
-    match entry.delete_password() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(format!("Cannot remove Notion token from system keychain: {e}")),
+fn set_owner_only_permissions(path: &PathBuf) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        let mut perms = fs::metadata(path)
+            .map_err(|e| format!("Cannot read permissions for {}: {e}", path.display()))?
+            .permissions();
+        perms.set_mode(0o600);
+        fs::set_permissions(path, perms)
+            .map_err(|e| format!("Cannot set permissions for {}: {e}", path.display()))?;
     }
+    Ok(())
 }
 
-fn load_legacy_notion_auth_from_disk(app: &AppHandle) -> Result<Option<LegacyNotionAuthDisk>, String> {
+fn parse_env_value(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.len() >= 2 {
+        if (trimmed.starts_with('"') && trimmed.ends_with('"'))
+            || (trimmed.starts_with('\'') && trimmed.ends_with('\''))
+        {
+            return trimmed[1..trimmed.len() - 1].to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
+fn read_env_var_from_cogmd_env(app: &AppHandle, env_key: &str) -> Result<Option<String>, String> {
+    let env_file = notion_env_file(app)?;
+    if !env_file.exists() {
+        return Ok(None);
+    }
+
+    let raw = fs::read_to_string(&env_file)
+        .map_err(|e| format!("Cannot read {}: {e}", env_file.display()))?;
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some((line_key, value)) = trimmed.split_once('=') {
+            let parsed_key = line_key.trim().trim_start_matches("export ").trim();
+            if parsed_key == env_key {
+                let token = parse_env_value(value);
+                if token.is_empty() {
+                    return Ok(None);
+                }
+                return Ok(Some(token));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn write_env_var_to_cogmd_env(app: &AppHandle, key: &str, value: &str) -> Result<(), String> {
+    let env_file = notion_env_file(app)?;
+    if value.contains('\n') || value.contains('\r') {
+        return Err("Invalid env value.".to_string());
+    }
+
+    let content = format!("{key}={value}\n");
+    fs::write(&env_file, content).map_err(|e| format!("Cannot save {}: {e}", env_file.display()))?;
+    set_owner_only_permissions(&env_file)?;
+    Ok(())
+}
+
+fn clear_notion_token_in_cogmd_env(app: &AppHandle) -> Result<(), String> {
+    let env_file = notion_env_file(app)?;
+    let env_keys = notion_env_keys_file(app)?;
+
+    if env_file.exists() {
+        fs::remove_file(&env_file)
+            .map_err(|e| format!("Cannot remove {}: {e}", env_file.display()))?;
+    }
+    if env_keys.exists() {
+        fs::remove_file(&env_keys)
+            .map_err(|e| format!("Cannot remove {}: {e}", env_keys.display()))?;
+    }
+    Ok(())
+}
+
+fn load_notion_auth_metadata_from_disk(app: &AppHandle) -> Result<Option<NotionAuthDisk>, String> {
     let path = notion_auth_file(app)?;
     if !path.exists() {
         return Ok(None);
     }
     let raw = fs::read_to_string(path).map_err(|e| format!("Cannot read Notion auth: {e}"))?;
-    let auth = serde_json::from_str::<LegacyNotionAuthDisk>(&raw)
+    let auth = serde_json::from_str::<NotionAuthDisk>(&raw)
         .map_err(|e| format!("Cannot parse Notion auth: {e}"))?;
     Ok(Some(auth))
 }
@@ -474,34 +531,17 @@ fn get_notion_auth(app: &AppHandle, state: &State<AppState>) -> Result<NotionAut
         return Ok(auth);
     }
 
-    let legacy_disk = load_legacy_notion_auth_from_disk(app)?;
-    let metadata = legacy_disk.as_ref().map(|auth| NotionAuthDisk {
-        workspace_name: auth.workspace_name.clone(),
-        bot_name: auth.bot_name.clone(),
-    });
+    let metadata = load_notion_auth_metadata_from_disk(app)?;
 
-    let mut token = load_notion_token_from_keychain(app)?;
-    if token.is_none() {
-        if let Some(legacy_token) = legacy_disk
-            .as_ref()
-            .and_then(|auth| auth.token.as_ref())
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-        {
-            save_notion_token_to_keychain(app, &legacy_token)?;
-            token = Some(legacy_token);
-            if let Some(metadata) = metadata.as_ref() {
-                save_notion_auth_metadata_to_disk(app, metadata)?;
-            }
-        }
-    } else if legacy_disk.as_ref().and_then(|auth| auth.token.as_ref()).is_some() {
-        if let Some(metadata) = metadata.as_ref() {
-            save_notion_auth_metadata_to_disk(app, metadata)?;
-        }
-    }
+    let env_disabled = *state.notion_env_disabled.lock().unwrap();
+    let token = if env_disabled {
+        None
+    } else {
+        load_notion_token_from_env().or(read_env_var_from_cogmd_env(app, "NOTION_TOKEN")?)
+    };
 
     let Some(token) = token else {
-        return Err("Notion is not connected. Open Notion and connect first.".to_string());
+        return Err("Notion is not connected. Set NOTION_TOKEN or connect in-app.".to_string());
     };
 
     let auth = NotionAuth {
@@ -847,7 +887,7 @@ async fn notion_connect(
         workspace_name,
         bot_name,
     };
-    save_notion_token_to_keychain(&app, &auth.token)?;
+    write_env_var_to_cogmd_env(&app, "NOTION_TOKEN", &auth.token)?;
     save_notion_auth_metadata_to_disk(
         &app,
         &NotionAuthDisk {
@@ -855,14 +895,16 @@ async fn notion_connect(
             bot_name: auth.bot_name.clone(),
         },
     )?;
+    *state.notion_env_disabled.lock().unwrap() = false;
     *state.notion_auth.lock().unwrap() = Some(auth.clone());
     Ok(notion_auth_status(Some(&auth)))
 }
 
 #[tauri::command]
 async fn notion_disconnect(app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
-    clear_notion_token_in_keychain(&app)?;
+    clear_notion_token_in_cogmd_env(&app)?;
     clear_notion_auth_metadata_on_disk(&app)?;
+    *state.notion_env_disabled.lock().unwrap() = true;
     *state.notion_auth.lock().unwrap() = None;
     Ok(true)
 }
@@ -1137,6 +1179,7 @@ pub fn run() {
         .manage(AppState {
             pending_file: Mutex::new(None),
             notion_auth: Mutex::new(None),
+            notion_env_disabled: Mutex::new(false),
         })
         .invoke_handler(tauri::generate_handler![
             open_file,

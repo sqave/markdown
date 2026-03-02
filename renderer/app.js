@@ -97,7 +97,7 @@ md.disable('lheading');
 
 // ===== Font Size =====
 
-const FONT_SIZE_MIN = 8, FONT_SIZE_MAX = 18, FONT_SIZE_DEFAULT = 10;
+const FONT_SIZE_MIN = 8, FONT_SIZE_MAX = 18, FONT_SIZE_DEFAULT = 9;
 let currentFontSize = parseInt(localStorage.getItem('cogmd-font-size'), 10) || FONT_SIZE_DEFAULT;
 const fontSizeCompartment = new Compartment();
 
@@ -503,8 +503,8 @@ function applyFontSize(size) {
   view.dispatch({
     effects: fontSizeCompartment.reconfigure(makeFontSizeTheme(currentFontSize)),
   });
-  previewEl.style.fontSize = (currentFontSize + 1) + 'px';
-  document.getElementById('diffContent').style.fontSize = (currentFontSize + 1) + 'px';
+  previewEl.style.fontSize = currentFontSize + 'px';
+  document.getElementById('diffContent').style.fontSize = currentFontSize + 'px';
 }
 
 document.getElementById('fontDecrease').addEventListener('click', () => {
@@ -528,8 +528,8 @@ document.addEventListener('keydown', (event) => {
 });
 
 // Set initial preview / diff font size
-previewEl.style.fontSize = (currentFontSize + 1) + 'px';
-document.getElementById('diffContent').style.fontSize = (currentFontSize + 1) + 'px';
+previewEl.style.fontSize = currentFontSize + 'px';
+document.getElementById('diffContent').style.fontSize = currentFontSize + 'px';
 
 // ===== Copy Button =====
 
