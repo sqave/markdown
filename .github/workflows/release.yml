@@ -75,7 +75,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: latest
-          releaseName: Cog Latest
+          releaseName: Cog Markdown Latest
           releaseBody: "See the assets to download the latest stable release (version __VERSION__)."
           releaseDraft: false
           prerelease: false

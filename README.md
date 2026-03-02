@@ -58,6 +58,8 @@ npm run build     # production .dmg
 | Open file | `Cmd+O` |
 | Save | `Cmd+S` |
 | Save as | `Cmd+Shift+S` |
+| Find | `Cmd+F` |
+| Find & Replace | `Cmd+R` |
 | Close tab | `Cmd+W` |
 | Next / prev tab | `Cmd+Shift+]` / `[` |
 | Editor only | `Cmd+1` |

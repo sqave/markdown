@@ -6,6 +6,7 @@ import { LanguageDescription } from '@codemirror/language';
 import { defaultKeymap, indentWithTab, history, historyKeymap } from '@codemirror/commands';
 import { syntaxHighlighting, HighlightStyle, bracketMatching } from '@codemirror/language';
 import { closeBrackets } from '@codemirror/autocomplete';
+import { search, searchKeymap, openSearchPanel } from '@codemirror/search';
 import { tags } from '@lezer/highlight';
 import markdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
@@ -306,10 +307,13 @@ function makeExtensions() {
     highlightActiveLine(),
     closeBrackets(),
     bracketMatching(),
+    search(),
     keymap.of([
       ...defaultKeymap,
       ...historyKeymap,
+      ...searchKeymap,
       indentWithTab,
+      { key: 'Mod-r', run: openSearchPanel },
     ]),
     EditorView.lineWrapping,
     EditorView.updateListener.of((update) => {
