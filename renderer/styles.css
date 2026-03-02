@@ -1108,6 +1108,147 @@ html.fullscreen .titlebar {
   display: none !important;
 }
 
+/* ===== Find Bar ===== */
+
+.cm-panels {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.cm-panels.cm-panels-top {
+  border-top: none;
+}
+
+.find-bar {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  font-size: 12px;
+}
+
+.find-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+}
+
+.find-bar-row[hidden] {
+  display: none;
+}
+
+.find-bar-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.find-bar-icon {
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.find-bar-search,
+.find-bar-replace {
+  width: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+
+.find-bar-search {
+  padding-left: 26px;
+  padding-right: 64px;
+}
+
+.find-bar-search:focus,
+.find-bar-replace:focus {
+  border-color: var(--accent);
+}
+
+.find-bar-match-count {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 10px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.find-bar-chevron {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+}
+
+.find-bar-chevron:hover {
+  color: var(--text-primary);
+  background: var(--selection);
+  border-color: var(--text-muted);
+}
+
+.find-bar-chevron:active {
+  background: var(--border);
+}
+
+.find-bar-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 5px;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.find-bar-btn:hover {
+  color: var(--text-primary);
+  background: var(--selection);
+}
+
+.find-bar-btn:active {
+  background: var(--border);
+}
+
+.find-bar-replace-toggle.active {
+  color: var(--accent);
+}
+
+.find-bar-done {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.find-bar-done:hover {
+  background: var(--selection);
+}
+
 /* ===== Manage Plugins Modal ===== */
 
 .manage-plugins-modal {

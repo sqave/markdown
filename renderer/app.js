@@ -297,6 +297,19 @@ const syncBtn = document.getElementById('syncBtn');
 const layoutBtns = document.querySelectorAll('.mode-btn[data-layout]');
 const rightBtns = document.querySelectorAll('.mode-btn[data-right]');
 
+function focusNativeReplaceInput(view) {
+  openSearchPanel(view);
+  requestAnimationFrame(() => {
+    const root = view.dom.closest('.cm-editor');
+    const replaceInput = root ? root.querySelector('.cm-search input[name="replace"]') : null;
+    if (replaceInput) {
+      replaceInput.focus();
+      replaceInput.select();
+    }
+  });
+  return true;
+}
+
 function makeExtensions() {
   return [
     themeCompartment.of(getThemeExtensions(currentTheme === 'dark')),
@@ -313,7 +326,7 @@ function makeExtensions() {
       ...historyKeymap,
       ...searchKeymap,
       indentWithTab,
-      { key: 'Mod-r', run: openSearchPanel },
+      { key: 'Mod-r', run: focusNativeReplaceInput },
     ]),
     EditorView.lineWrapping,
     EditorView.updateListener.of((update) => {
@@ -485,6 +498,16 @@ document.addEventListener('click', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeDisplayMenu();
 });
+
+// Ensure Cmd/Ctrl+F always opens CodeMirror's native search panel,
+// even when editor focus has drifted.
+document.addEventListener('keydown', (event) => {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+  if (event.key.toLowerCase() !== 'f') return;
+  event.preventDefault();
+  openSearchPanel(view);
+  view.focus();
+}, true);
 
 // Set initial preview / diff font size
 previewEl.style.fontSize = currentFontSize + 'px';
