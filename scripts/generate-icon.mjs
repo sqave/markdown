@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { readFileSync, mkdirSync, rmSync } from 'fs';
+import { readFileSync, mkdirSync } from 'fs';
 import { execSync } from 'child_process';
 
 mkdirSync('build', { recursive: true });
@@ -14,16 +14,6 @@ await sharp(readFileSync('icon.svg'))
 
 console.log(`Generated build/icon.png (${size}×${size}, full-bleed)`);
 
-// Generate .icns for macOS (requires macOS with sips + iconutil)
-if (process.platform === 'darwin') {
-  const iconsetDir = 'build/icon.iconset';
-  mkdirSync(iconsetDir, { recursive: true });
-  for (const size of [16, 32, 128, 256, 512]) {
-    execSync(`sips -z ${size} ${size} build/icon.png --out ${iconsetDir}/icon_${size}x${size}.png`, { stdio: 'ignore' });
-    const d = size * 2;
-    execSync(`sips -z ${d} ${d} build/icon.png --out ${iconsetDir}/icon_${size}x${size}@2x.png`, { stdio: 'ignore' });
-  }
-  execSync('iconutil -c icns build/icon.iconset -o build/icon.icns');
-  rmSync(iconsetDir, { recursive: true });
-  console.log('Generated build/icon.icns');
-}
+// Use Tauri CLI to generate all platform icons from the 1024x1024 PNG
+execSync('npx tauri icon build/icon.png', { stdio: 'inherit' });
+console.log('Generated all icons in src-tauri/icons/');
