@@ -24,6 +24,12 @@ window.api = {
   getPendingFile: () => invoke('get_pending_file'),
   gitShow: (filePath) => invoke('git_show', { filePath }),
   extractVsix: (vsixPath) => invoke('extract_vsix', { vsixPath }),
+  notionAuthStatus: () => invoke('notion_auth_status_command'),
+  notionConnect: (token) => invoke('notion_connect', { token }),
+  notionDisconnect: () => invoke('notion_disconnect'),
+  notionSearchPages: (query) => invoke('notion_search_pages', { query }),
+  notionPullPage: (pageId) => invoke('notion_pull_page', { pageId }),
+  notionPushPage: (pageId, content) => invoke('notion_push_page', { pageId, content }),
   confirmClose: (filename) => ask(`"${filename}" has unsaved changes. Close anyway?`, { title: 'Unsaved Changes', kind: 'warning', okLabel: 'Close', cancelLabel: 'Cancel' }),
   confirmAction: (message, options) => ask(message, options),
 

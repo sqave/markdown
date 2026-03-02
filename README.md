@@ -26,6 +26,7 @@ If that didn't work, you might need to add `sudo` in front of the command.
 - **Local-first** — files live on your disk, nothing phones home
 - **macOS native** — traffic lights, frameless titlebar, `.md` file associations
 - **Auto-updates** — checks GitHub Releases on launch
+- **Notion plugin (custom)** — connect via internal integration secret, search pages, link a page to a tab, and sync with merge checks
 
 ## Development
 
@@ -69,7 +70,17 @@ npm run build     # production .dmg
 
 ## Plugins
 
-Plugin support is a work in progress. The backend infrastructure (VSIX extraction, sandboxed JS runtime, event bus) is in place, but there is no user-facing UI for installing or managing plugins yet.
+Plugin support is a work in progress for generic VSIX plugins.
+
+This build includes a first custom plugin for Notion:
+- Open the Notion button in the titlebar.
+- Connect with a Notion internal integration secret.
+- Search pages and click `Link` to attach a page to the current tab.
+- Use the Notion sync button (or `Cmd+S` on a linked tab) to sync.
+
+Sync behavior uses the same three-way merge style as local disk sync:
+- If Notion changed remotely since your last sync, you get a merge prompt.
+- If only local changed, you can push local edits to Notion.
 
 ## License
 

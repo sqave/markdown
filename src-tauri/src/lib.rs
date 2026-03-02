@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
@@ -14,6 +16,7 @@ use tauri::{
 
 struct AppState {
     pending_file: Mutex<Option<PendingFile>>,
+    notion_auth: Mutex<Option<NotionAuth>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -38,6 +41,42 @@ struct FileSnapshot {
     #[serde(rename = "modifiedMs")]
     modified_ms: u128,
     size: u64,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct NotionAuth {
+    token: String,
+    #[serde(rename = "workspaceName")]
+    workspace_name: Option<String>,
+    #[serde(rename = "botName")]
+    bot_name: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+struct NotionAuthStatus {
+    connected: bool,
+    #[serde(rename = "workspaceName")]
+    workspace_name: Option<String>,
+    #[serde(rename = "botName")]
+    bot_name: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+struct NotionPageSummary {
+    id: String,
+    title: String,
+    #[serde(rename = "lastEditedTime")]
+    last_edited_time: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+struct NotionPageDocument {
+    #[serde(rename = "pageId")]
+    page_id: String,
+    title: String,
+    content: String,
+    #[serde(rename = "lastEditedTime")]
+    last_edited_time: Option<String>,
 }
 
 // -- Tauri commands --
@@ -321,6 +360,510 @@ async fn extract_vsix(app: AppHandle, vsix_path: String) -> Result<ExtensionInfo
     })
 }
 
+// -- Notion integration --
+
+fn notion_auth_file(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .home_dir()
+        .map_err(|e| format!("Cannot find home dir: {e}"))?
+        .join(".cogmd");
+    fs::create_dir_all(&dir).map_err(|e| format!("Cannot create CogMD config dir: {e}"))?;
+    Ok(dir.join("notion-auth.json"))
+}
+
+fn load_notion_auth_from_disk(app: &AppHandle) -> Result<Option<NotionAuth>, String> {
+    let path = notion_auth_file(app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(path).map_err(|e| format!("Cannot read Notion auth: {e}"))?;
+    let auth = serde_json::from_str::<NotionAuth>(&raw)
+        .map_err(|e| format!("Cannot parse Notion auth: {e}"))?;
+    Ok(Some(auth))
+}
+
+fn save_notion_auth_to_disk(app: &AppHandle, auth: &NotionAuth) -> Result<(), String> {
+    let path = notion_auth_file(app)?;
+    let raw = serde_json::to_string(auth).map_err(|e| format!("Cannot encode Notion auth: {e}"))?;
+    fs::write(path, raw).map_err(|e| format!("Cannot save Notion auth: {e}"))?;
+    Ok(())
+}
+
+fn clear_notion_auth_on_disk(app: &AppHandle) -> Result<(), String> {
+    let path = notion_auth_file(app)?;
+    if path.exists() {
+        fs::remove_file(path).map_err(|e| format!("Cannot remove Notion auth: {e}"))?;
+    }
+    Ok(())
+}
+
+fn notion_auth_status(auth: Option<&NotionAuth>) -> NotionAuthStatus {
+    match auth {
+        Some(auth) => NotionAuthStatus {
+            connected: true,
+            workspace_name: auth.workspace_name.clone(),
+            bot_name: auth.bot_name.clone(),
+        },
+        None => NotionAuthStatus {
+            connected: false,
+            workspace_name: None,
+            bot_name: None,
+        },
+    }
+}
+
+fn get_notion_auth(app: &AppHandle, state: &State<AppState>) -> Result<NotionAuth, String> {
+    if let Some(auth) = state.notion_auth.lock().unwrap().clone() {
+        return Ok(auth);
+    }
+    let from_disk = load_notion_auth_from_disk(app)?;
+    if let Some(auth) = from_disk {
+        *state.notion_auth.lock().unwrap() = Some(auth.clone());
+        return Ok(auth);
+    }
+    Err("Notion is not connected. Open Notion and connect first.".to_string())
+}
+
+fn notion_api(
+    method: &str,
+    path: &str,
+    token: &str,
+    body: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let url = format!("https://api.notion.com/v1{path}");
+    let mut cmd = Command::new("curl");
+    cmd.arg("-sS")
+        .arg("-X")
+        .arg(method)
+        .arg(&url)
+        .arg("-H")
+        .arg(format!("Authorization: Bearer {token}"))
+        .arg("-H")
+        .arg("Notion-Version: 2022-06-28")
+        .arg("-H")
+        .arg("Content-Type: application/json");
+
+    if let Some(payload) = body {
+        let raw = serde_json::to_string(&payload)
+            .map_err(|e| format!("Cannot encode Notion request body: {e}"))?;
+        cmd.arg("--data").arg(raw);
+    }
+
+    let out = cmd
+        .output()
+        .map_err(|e| format!("Failed to call Notion API (curl): {e}"))?;
+
+    if !out.status.success() {
+        return Err(format!(
+            "Notion API request failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        ));
+    }
+
+    let raw = String::from_utf8_lossy(&out.stdout).to_string();
+    let parsed: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| format!("Invalid Notion API response: {e}"))?;
+
+    if parsed["object"].as_str() == Some("error") {
+        let message = parsed["message"]
+            .as_str()
+            .unwrap_or("Notion API error");
+        return Err(message.to_string());
+    }
+
+    Ok(parsed)
+}
+
+fn extract_notion_title(page: &serde_json::Value) -> String {
+    if let Some(props) = page["properties"].as_object() {
+        for value in props.values() {
+            if value["type"].as_str() == Some("title") {
+                let mut full = String::new();
+                if let Some(arr) = value["title"].as_array() {
+                    for item in arr {
+                        if let Some(text) = item["plain_text"].as_str() {
+                            full.push_str(text);
+                        }
+                    }
+                }
+                if !full.trim().is_empty() {
+                    return full;
+                }
+            }
+        }
+    }
+    "Untitled".to_string()
+}
+
+fn notion_rich_text_to_string(rich: &serde_json::Value) -> String {
+    let mut out = String::new();
+    if let Some(arr) = rich.as_array() {
+        for item in arr {
+            if let Some(text) = item["plain_text"].as_str() {
+                out.push_str(text);
+            }
+        }
+    }
+    out
+}
+
+fn chunk_text_for_notion(text: &str, max_chars: usize) -> Vec<String> {
+    if text.is_empty() {
+        return Vec::new();
+    }
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+    let mut current_len = 0usize;
+    for ch in text.chars() {
+        if current_len >= max_chars {
+            chunks.push(current);
+            current = String::new();
+            current_len = 0;
+        }
+        current.push(ch);
+        current_len += 1;
+    }
+    if !current.is_empty() {
+        chunks.push(current);
+    }
+    chunks
+}
+
+fn notion_text_objects(text: &str) -> Vec<serde_json::Value> {
+    chunk_text_for_notion(text, 1800)
+        .into_iter()
+        .map(|chunk| {
+            json!({
+                "type": "text",
+                "text": { "content": chunk }
+            })
+        })
+        .collect()
+}
+
+fn notion_block_with_text(block_type: &str, text: &str) -> serde_json::Value {
+    let rich = notion_text_objects(text);
+    match block_type {
+        "paragraph" => json!({ "object": "block", "type": "paragraph", "paragraph": { "rich_text": rich } }),
+        "heading_1" => json!({ "object": "block", "type": "heading_1", "heading_1": { "rich_text": rich } }),
+        "heading_2" => json!({ "object": "block", "type": "heading_2", "heading_2": { "rich_text": rich } }),
+        "heading_3" => json!({ "object": "block", "type": "heading_3", "heading_3": { "rich_text": rich } }),
+        "quote" => json!({ "object": "block", "type": "quote", "quote": { "rich_text": rich } }),
+        "bulleted_list_item" => json!({ "object": "block", "type": "bulleted_list_item", "bulleted_list_item": { "rich_text": rich } }),
+        "numbered_list_item" => json!({ "object": "block", "type": "numbered_list_item", "numbered_list_item": { "rich_text": rich } }),
+        _ => json!({ "object": "block", "type": "paragraph", "paragraph": { "rich_text": rich } }),
+    }
+}
+
+fn markdown_to_notion_blocks(content: &str) -> Vec<serde_json::Value> {
+    let mut blocks = Vec::new();
+    let mut lines = content.lines().peekable();
+
+    while let Some(line) = lines.next() {
+        let trimmed = line.trim_end();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if let Some(code_lang) = trimmed.strip_prefix("```") {
+            let mut code_lines = Vec::new();
+            while let Some(next_line) = lines.peek() {
+                if next_line.trim_start().starts_with("```") {
+                    let _ = lines.next();
+                    break;
+                }
+                code_lines.push(lines.next().unwrap_or_default().to_string());
+            }
+            let code_text = code_lines.join("\n");
+            blocks.push(json!({
+                "object": "block",
+                "type": "code",
+                "code": {
+                    "rich_text": notion_text_objects(&code_text),
+                    "language": if code_lang.trim().is_empty() { "plain text" } else { code_lang.trim() }
+                }
+            }));
+            continue;
+        }
+
+        if trimmed == "---" || trimmed == "***" {
+            blocks.push(json!({ "object": "block", "type": "divider", "divider": {} }));
+            continue;
+        }
+
+        if let Some(rest) = trimmed.strip_prefix("# ") {
+            blocks.push(notion_block_with_text("heading_1", rest));
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("## ") {
+            blocks.push(notion_block_with_text("heading_2", rest));
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("### ") {
+            blocks.push(notion_block_with_text("heading_3", rest));
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("> ") {
+            blocks.push(notion_block_with_text("quote", rest));
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("- [ ] ") {
+            blocks.push(json!({
+                "object": "block",
+                "type": "to_do",
+                "to_do": { "rich_text": notion_text_objects(rest), "checked": false }
+            }));
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("- [x] ") {
+            blocks.push(json!({
+                "object": "block",
+                "type": "to_do",
+                "to_do": { "rich_text": notion_text_objects(rest), "checked": true }
+            }));
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("- ") {
+            blocks.push(notion_block_with_text("bulleted_list_item", rest));
+            continue;
+        }
+
+        if let Some(dot_pos) = trimmed.find(". ") {
+            let (prefix, rest) = trimmed.split_at(dot_pos);
+            if !prefix.is_empty() && prefix.chars().all(|c| c.is_ascii_digit()) {
+                let body = rest.strip_prefix(". ").unwrap_or(rest);
+                blocks.push(notion_block_with_text("numbered_list_item", body));
+                continue;
+            }
+        }
+
+        let mut paragraph = trimmed.to_string();
+        while let Some(peek) = lines.peek() {
+            let next = peek.trim_end();
+            if next.is_empty() || next.starts_with('#') || next.starts_with("- ") || next.starts_with("> ")
+            {
+                break;
+            }
+            if next.starts_with("```") || next == "---" || next == "***" {
+                break;
+            }
+            paragraph.push('\n');
+            paragraph.push_str(lines.next().unwrap_or_default().trim_end());
+        }
+        blocks.push(notion_block_with_text("paragraph", &paragraph));
+    }
+
+    blocks
+}
+
+fn notion_blocks_to_markdown(blocks: &[serde_json::Value]) -> String {
+    let mut out = Vec::new();
+    for block in blocks {
+        let block_type = block["type"].as_str().unwrap_or_default();
+        let line = match block_type {
+            "paragraph" => notion_rich_text_to_string(&block["paragraph"]["rich_text"]),
+            "heading_1" => format!("# {}", notion_rich_text_to_string(&block["heading_1"]["rich_text"])),
+            "heading_2" => format!("## {}", notion_rich_text_to_string(&block["heading_2"]["rich_text"])),
+            "heading_3" => format!("### {}", notion_rich_text_to_string(&block["heading_3"]["rich_text"])),
+            "quote" => format!("> {}", notion_rich_text_to_string(&block["quote"]["rich_text"])),
+            "bulleted_list_item" => {
+                format!("- {}", notion_rich_text_to_string(&block["bulleted_list_item"]["rich_text"]))
+            }
+            "numbered_list_item" => {
+                format!("1. {}", notion_rich_text_to_string(&block["numbered_list_item"]["rich_text"]))
+            }
+            "to_do" => {
+                let checked = block["to_do"]["checked"].as_bool().unwrap_or(false);
+                let prefix = if checked { "- [x] " } else { "- [ ] " };
+                format!("{prefix}{}", notion_rich_text_to_string(&block["to_do"]["rich_text"]))
+            }
+            "code" => {
+                let lang = block["code"]["language"].as_str().unwrap_or("plain text");
+                let text = notion_rich_text_to_string(&block["code"]["rich_text"]);
+                format!("```{lang}\n{text}\n```")
+            }
+            "divider" => "---".to_string(),
+            _ => continue,
+        };
+        out.push(line);
+    }
+    out.join("\n\n")
+}
+
+fn notion_fetch_all_children(token: &str, parent_id: &str) -> Result<Vec<serde_json::Value>, String> {
+    let mut all = Vec::new();
+    let mut cursor: Option<String> = None;
+    loop {
+        let mut path = format!("/blocks/{parent_id}/children?page_size=100");
+        if let Some(c) = cursor.clone() {
+            path.push_str("&start_cursor=");
+            path.push_str(&c);
+        }
+        let response = notion_api("GET", &path, token, None)?;
+        if let Some(arr) = response["results"].as_array() {
+            all.extend(arr.iter().cloned());
+        }
+        let has_more = response["has_more"].as_bool().unwrap_or(false);
+        if !has_more {
+            break;
+        }
+        cursor = response["next_cursor"].as_str().map(|s| s.to_string());
+        if cursor.is_none() {
+            break;
+        }
+    }
+    Ok(all)
+}
+
+fn notion_append_blocks(token: &str, page_id: &str, blocks: &[serde_json::Value]) -> Result<(), String> {
+    if blocks.is_empty() {
+        return Ok(());
+    }
+    for chunk in blocks.chunks(50) {
+        notion_api(
+            "PATCH",
+            &format!("/blocks/{page_id}/children"),
+            token,
+            Some(json!({ "children": chunk })),
+        )?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn notion_auth_status_command(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<NotionAuthStatus, String> {
+    let auth = get_notion_auth(&app, &state).ok();
+    Ok(notion_auth_status(auth.as_ref()))
+}
+
+#[tauri::command]
+async fn notion_connect(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    token: String,
+) -> Result<NotionAuthStatus, String> {
+    let token = token.trim().to_string();
+    if token.is_empty() {
+        return Err("Notion token is required.".to_string());
+    }
+
+    let me = notion_api("GET", "/users/me", &token, None)?;
+    let workspace_name = me["bot"]["workspace_name"].as_str().map(|s| s.to_string());
+    let bot_name = me["name"].as_str().map(|s| s.to_string());
+    let auth = NotionAuth {
+        token,
+        workspace_name,
+        bot_name,
+    };
+    save_notion_auth_to_disk(&app, &auth)?;
+    *state.notion_auth.lock().unwrap() = Some(auth.clone());
+    Ok(notion_auth_status(Some(&auth)))
+}
+
+#[tauri::command]
+async fn notion_disconnect(app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
+    clear_notion_auth_on_disk(&app)?;
+    *state.notion_auth.lock().unwrap() = None;
+    Ok(true)
+}
+
+#[tauri::command]
+async fn notion_search_pages(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    query: String,
+) -> Result<Vec<NotionPageSummary>, String> {
+    let auth = get_notion_auth(&app, &state)?;
+    let trimmed = query.trim().to_string();
+    let page_size = if trimmed.is_empty() { 5 } else { 20 };
+    let mut body = json!({
+        "filter": { "property": "object", "value": "page" },
+        "sort": { "timestamp": "last_edited_time", "direction": "descending" },
+        "page_size": page_size
+    });
+    if !trimmed.is_empty() {
+        body["query"] = serde_json::Value::String(trimmed);
+    }
+    let response = notion_api(
+        "POST",
+        "/search",
+        &auth.token,
+        Some(body),
+    )?;
+
+    let mut pages = Vec::new();
+    if let Some(results) = response["results"].as_array() {
+        for page in results {
+            if page["object"].as_str() != Some("page") {
+                continue;
+            }
+            let id = page["id"].as_str().unwrap_or_default().to_string();
+            if id.is_empty() {
+                continue;
+            }
+            pages.push(NotionPageSummary {
+                id,
+                title: extract_notion_title(page),
+                last_edited_time: page["last_edited_time"].as_str().map(|s| s.to_string()),
+            });
+        }
+    }
+    Ok(pages)
+}
+
+#[tauri::command]
+async fn notion_pull_page(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    page_id: String,
+) -> Result<NotionPageDocument, String> {
+    let auth = get_notion_auth(&app, &state)?;
+    let page = notion_api("GET", &format!("/pages/{page_id}"), &auth.token, None)?;
+    let blocks = notion_fetch_all_children(&auth.token, &page_id)?;
+    Ok(NotionPageDocument {
+        page_id: page_id.clone(),
+        title: extract_notion_title(&page),
+        content: notion_blocks_to_markdown(&blocks),
+        last_edited_time: page["last_edited_time"].as_str().map(|s| s.to_string()),
+    })
+}
+
+#[tauri::command]
+async fn notion_push_page(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    page_id: String,
+    content: String,
+) -> Result<NotionPageDocument, String> {
+    let auth = get_notion_auth(&app, &state)?;
+    let existing = notion_fetch_all_children(&auth.token, &page_id)?;
+    for block in existing {
+        if let Some(id) = block["id"].as_str() {
+            let _ = notion_api(
+                "PATCH",
+                &format!("/blocks/{id}"),
+                &auth.token,
+                Some(json!({ "archived": true })),
+            );
+        }
+    }
+
+    let blocks = markdown_to_notion_blocks(&content);
+    notion_append_blocks(&auth.token, &page_id, &blocks)?;
+
+    let page = notion_api("GET", &format!("/pages/{page_id}"), &auth.token, None)?;
+    Ok(NotionPageDocument {
+        page_id,
+        title: extract_notion_title(&page),
+        content,
+        last_edited_time: page["last_edited_time"].as_str().map(|s| s.to_string()),
+    })
+}
+
 // -- Menu --
 
 fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
@@ -497,6 +1040,7 @@ pub fn run() {
         )
         .manage(AppState {
             pending_file: Mutex::new(None),
+            notion_auth: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             open_file,
@@ -509,6 +1053,12 @@ pub fn run() {
             get_pending_file,
             git_show,
             extract_vsix,
+            notion_auth_status_command,
+            notion_connect,
+            notion_disconnect,
+            notion_search_pages,
+            notion_pull_page,
+            notion_push_page,
         ])
         .setup(|app| {
             let menu = build_menu(app.handle())?;

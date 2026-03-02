@@ -288,8 +288,46 @@ const themeToggle = document.getElementById('themeToggle');
 const copyBtn = document.getElementById('copyBtn');
 const openFolderBtn = document.getElementById('openFolderBtn');
 const syncBtn = document.getElementById('syncBtn');
+const notionBtn = document.getElementById('notionBtn');
+const notionSyncBtn = document.getElementById('notionSyncBtn');
 const layoutBtns = document.querySelectorAll('.mode-btn[data-layout]');
 const rightBtns = document.querySelectorAll('.mode-btn[data-right]');
+const notionModal = document.getElementById('notionModal');
+const notionTokenModal = document.getElementById('notionTokenModal');
+const notionTokenInput = document.getElementById('notionTokenInput');
+const notionStatusDot = document.getElementById('notionStatusDot');
+const notionDisconnectBtn = document.getElementById('notionDisconnectBtn');
+const notionConnectCtaBtn = document.getElementById('notionConnectCtaBtn');
+const notionDisconnectedState = document.getElementById('notionDisconnectedState');
+const notionConnectedState = document.getElementById('notionConnectedState');
+const notionSearchInput = document.getElementById('notionSearchInput');
+const notionSearchBtn = document.getElementById('notionSearchBtn');
+const notionResults = document.getElementById('notionResults');
+const notionCloseBtn = document.getElementById('notionCloseBtn');
+const notionTokenCloseBtn = document.getElementById('notionTokenCloseBtn');
+const notionTokenConnectBtn = document.getElementById('notionTokenConnectBtn');
+
+let notionAuth = { connected: false, workspaceName: null, botName: null };
+let notionImportInProgress = false;
+let notionSyncInProgress = false;
+
+function setNotionImportBusy(isBusy) {
+  notionImportInProgress = isBusy;
+  notionModal.classList.toggle('busy', isBusy);
+  notionSearchInput.disabled = isBusy;
+  notionSearchBtn.disabled = isBusy;
+  notionDisconnectBtn.disabled = isBusy;
+  notionCloseBtn.disabled = isBusy;
+}
+
+function setNotionSyncBusy(isBusy) {
+  notionSyncInProgress = isBusy;
+  notionSyncBtn.classList.toggle('syncing', isBusy);
+  notionSyncBtn.disabled = isBusy;
+  notionSyncBtn.title = isBusy
+    ? 'Syncing Notion changes...'
+    : 'Check Notion page changes and sync';
+}
 
 function makeExtensions() {
   return [
@@ -471,6 +509,19 @@ syncBtn.addEventListener('click', async () => {
   await handleSyncCheck();
 });
 
+notionBtn.addEventListener('click', async () => {
+  await refreshNotionAuthStatus();
+  notionModal.classList.add('visible');
+  if (notionAuth.connected) {
+    await loadRecentNotionPages();
+  }
+});
+
+notionSyncBtn.addEventListener('click', async () => {
+  if (notionSyncInProgress) return;
+  await handleNotionSync();
+});
+
 function updateOpenFolderButton() {
   const hasFileOnDisk = Boolean(currentFilePath);
   openFolderBtn.classList.toggle('hidden', !hasFileOnDisk);
@@ -482,6 +533,17 @@ function updateSyncButton() {
   const hasExternalChange = Boolean(tab && tab.hasExternalChange);
   syncBtn.classList.toggle('hidden', !hasFileOnDisk);
   syncBtn.classList.toggle('warn', hasExternalChange);
+}
+
+function updateNotionButtons() {
+  notionBtn.classList.toggle('connected', Boolean(notionAuth.connected));
+  const tab = tabs.find(t => t.id === activeTabId);
+  const hasNotionPage = Boolean(tab && tab.notionPageId);
+  const hasNotionExternalChange = Boolean(tab && tab.notionHasExternalChange);
+  notionSyncBtn.classList.toggle('hidden', !hasNotionPage);
+  notionSyncBtn.classList.toggle('warn', hasNotionExternalChange);
+  notionSyncBtn.classList.toggle('syncing', notionSyncInProgress);
+  notionSyncBtn.disabled = notionSyncInProgress;
 }
 
 async function handleOpenContainingFolder() {
@@ -498,9 +560,11 @@ async function handleOpenContainingFolder() {
 function updateTitle() {
   updateOpenFolderButton();
   updateSyncButton();
+  updateNotionButtons();
+  const tab = tabs.find(t => t.id === activeTabId);
   const name = currentFilePath
     ? currentFilePath.split('/').pop()
-    : 'Untitled';
+    : (tab?.notionPageTitle || 'Untitled');
   const prefix = isDirty ? '\u25cf ' : '';
   window.api.setTitle(`${prefix}${name} \u2014 CogMD`);
 }
@@ -516,7 +580,27 @@ function replaceEditorContent(nextContent) {
 // ===== Tab Core Functions =====
 
 function getTabName(tab) {
-  return tab.filePath ? tab.filePath.split('/').pop() : 'Untitled';
+  return tab.filePath ? tab.filePath.split('/').pop() : (tab.notionPageTitle || 'Untitled');
+}
+
+function createNotionIconSvg(className = 'notion-logo') {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', className);
+  svg.setAttribute('width', '14');
+  svg.setAttribute('height', '14');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('aria-hidden', 'true');
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('fill', 'currentColor');
+  path.setAttribute(
+    'd',
+    'M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z'
+  );
+
+  svg.appendChild(path);
+  return svg;
 }
 
 function snapshotCurrentTab() {
@@ -583,6 +667,11 @@ function createTab(filePath, content) {
     content: content || '',
     isDirty: false,
     hasExternalChange: false,
+    notionPageId: null,
+    notionPageTitle: null,
+    notionLastSyncedContent: '',
+    notionLastEditedTime: null,
+    notionHasExternalChange: false,
     scrollTop: 0,
     selectionMain: { anchor: 0, head: 0 },
     lastSavedContent: content || '',
@@ -642,13 +731,19 @@ function renderTabBar() {
     btn.className = 'tab'
       + (tab.id === activeTabId ? ' active' : '')
       + (tab.isDirty ? ' dirty' : '')
-      + (tab.hasExternalChange ? ' remote-dirty' : '');
+      + ((tab.hasExternalChange || tab.notionHasExternalChange) ? ' remote-dirty' : '');
     btn.dataset.tabId = tab.id;
-    btn.title = tab.filePath || 'Untitled';
+    btn.title = tab.filePath || tab.notionPageTitle || 'Untitled';
 
     const nameSpan = document.createElement('span');
     nameSpan.className = 'tab-name';
     nameSpan.textContent = getTabName(tab);
+
+    if (tab.notionPageId) {
+      const notionIcon = createNotionIconSvg('notion-logo tab-remote-icon');
+      btn.appendChild(notionIcon);
+    }
+
     btn.appendChild(nameSpan);
 
     const dirtyDot = document.createElement('span');
@@ -700,7 +795,16 @@ tabBar.addEventListener('wheel', (e) => {
 
 // ===== File Ops =====
 
-function setActiveTabState({ content, dirty, lastSavedContent, hasExternalChange }) {
+function setActiveTabState({
+  content,
+  dirty,
+  lastSavedContent,
+  hasExternalChange,
+  notionLastSyncedContent,
+  notionHasExternalChange,
+  notionLastEditedTime,
+  notionPageTitle,
+}) {
   const tab = tabs.find(t => t.id === activeTabId);
   if (!tab) return;
 
@@ -709,6 +813,14 @@ function setActiveTabState({ content, dirty, lastSavedContent, hasExternalChange
   tab.isDirty = dirty;
   tab.lastSavedContent = lastSavedContent;
   tab.hasExternalChange = hasExternalChange;
+  if (typeof notionLastSyncedContent === 'string') tab.notionLastSyncedContent = notionLastSyncedContent;
+  if (typeof notionHasExternalChange === 'boolean') tab.notionHasExternalChange = notionHasExternalChange;
+  if (typeof notionLastEditedTime === 'string' || notionLastEditedTime === null) {
+    tab.notionLastEditedTime = notionLastEditedTime;
+  }
+  if (typeof notionPageTitle === 'string' && notionPageTitle) {
+    tab.notionPageTitle = notionPageTitle;
+  }
 
   isDirty = dirty;
   window.api.setDocumentEdited(dirty);
@@ -772,6 +884,372 @@ async function handleSyncCheck() {
   });
 }
 
+function renderNotionResults(items) {
+  notionResults.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'notion-empty';
+    empty.textContent = 'No pages found. Please make sure the integration connection is enabled for this page in Notion.';
+    notionResults.appendChild(empty);
+    return;
+  }
+
+  items.forEach((item) => {
+    const existingLinkedTab = tabs.find(t => t.notionPageId === item.id);
+    const row = document.createElement('div');
+    row.className = `notion-result-row${existingLinkedTab ? ' already-imported' : ''}`;
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+    row.setAttribute(
+      'aria-label',
+      existingLinkedTab
+        ? `Open imported Notion page ${item.title || 'Untitled'}`
+        : `Link Notion page ${item.title || 'Untitled'}`
+    );
+
+    const name = document.createElement('div');
+    name.className = 'notion-result-title';
+    name.textContent = item.title || 'Untitled';
+
+    const meta = document.createElement('div');
+    meta.className = 'notion-result-meta';
+    if (item.lastEditedTime) {
+      const dt = new Date(item.lastEditedTime);
+      meta.textContent = Number.isNaN(dt.getTime())
+        ? `Edited: ${item.lastEditedTime}`
+        : `Edited ${dt.toLocaleString()}`;
+    } else {
+      meta.textContent = item.id;
+    }
+
+    const check = document.createElement('span');
+    check.className = 'notion-result-check';
+    check.textContent = '✓';
+    check.setAttribute('aria-hidden', 'true');
+
+    const handleLink = async () => {
+      const linkedTab = tabs.find(t => t.notionPageId === item.id);
+      if (linkedTab) {
+        activateTab(linkedTab.id);
+        notionModal.classList.remove('visible');
+        return;
+      }
+
+      if (notionImportInProgress) return;
+      if (row.classList.contains('loading')) return;
+      setNotionImportBusy(true);
+      notionResults.classList.add('is-busy');
+      row.classList.add('loading');
+      row.setAttribute('aria-busy', 'true');
+      const previousMeta = meta.textContent;
+      meta.textContent = 'Importing...';
+
+      try {
+        const pulled = await window.api.notionPullPage(item.id);
+        let tab = tabs.find(t => t.id === activeTabId);
+        if (!tab) return;
+
+        const isReusable = !tab.filePath && !tab.notionPageId && !tab.isDirty && view.state.doc.length === 0;
+        if (!isReusable) {
+          snapshotCurrentTab();
+          tab = createTab(null, '');
+          activateTab(tab.id);
+          tab = tabs.find(t => t.id === activeTabId);
+        }
+        if (!tab) return;
+
+        setActiveTabState({
+          content: pulled.content || '',
+          dirty: false,
+          lastSavedContent: tab.lastSavedContent || '',
+          hasExternalChange: false,
+          notionLastSyncedContent: pulled.content || '',
+          notionHasExternalChange: false,
+          notionLastEditedTime: pulled.lastEditedTime || null,
+          notionPageTitle: pulled.title || 'Untitled',
+        });
+
+        tab.notionPageId = pulled.pageId;
+        tab.notionPageTitle = pulled.title || 'Untitled';
+        tab.notionLastSyncedContent = pulled.content || '';
+        tab.notionLastEditedTime = pulled.lastEditedTime || null;
+        tab.notionHasExternalChange = false;
+        tab.filePath = null;
+        currentFilePath = null;
+        renderTabBar();
+        updateTitle();
+        scheduleSessionSave();
+        notionModal.classList.remove('visible');
+      } catch (e) {
+        console.error('Failed to link Notion page:', e);
+        meta.textContent = previousMeta;
+        await window.api.confirmAction(
+          `Could not pull page from Notion: ${String(e)}`,
+          { title: 'Notion Error', kind: 'warning', okLabel: 'OK', cancelLabel: 'Dismiss' }
+        );
+      } finally {
+        notionResults.classList.remove('is-busy');
+        row.classList.remove('loading');
+        row.removeAttribute('aria-busy');
+        setNotionImportBusy(false);
+      }
+    };
+
+    row.addEventListener('click', handleLink);
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleLink();
+      }
+    });
+
+    row.appendChild(name);
+    row.appendChild(meta);
+    if (existingLinkedTab) {
+      row.appendChild(check);
+    }
+    notionResults.appendChild(row);
+  });
+}
+
+function renderNotionLoading() {
+  notionResults.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'notion-loading-state';
+
+  const spinner = document.createElement('div');
+  spinner.className = 'notion-spinner';
+  spinner.setAttribute('aria-hidden', 'true');
+
+  const label = document.createElement('span');
+  label.className = 'notion-loading-label';
+  label.textContent = 'Loading pages...';
+
+  loading.appendChild(spinner);
+  loading.appendChild(label);
+  notionResults.appendChild(loading);
+}
+
+async function loadRecentNotionPages() {
+  renderNotionLoading();
+  try {
+    const results = await window.api.notionSearchPages('');
+    renderNotionResults(results || []);
+  } catch (e) {
+    console.error('Notion recent pages load failed:', e);
+    renderNotionResults([]);
+  }
+}
+
+async function refreshNotionAuthStatus() {
+  try {
+    notionAuth = await window.api.notionAuthStatus();
+  } catch (_) {
+    notionAuth = { connected: false, workspaceName: null, botName: null };
+  }
+  notionStatusDot.textContent = notionAuth.connected ? '\u2713' : '\u2715';
+  notionStatusDot.classList.toggle('connected', notionAuth.connected);
+  notionDisconnectedState.classList.toggle('hidden', notionAuth.connected);
+  notionConnectedState.classList.toggle('hidden', !notionAuth.connected);
+  notionDisconnectBtn.classList.toggle('hidden', !notionAuth.connected);
+  updateNotionButtons();
+}
+
+async function handleNotionSearch() {
+  if (notionImportInProgress) return;
+  const query = notionSearchInput.value.trim();
+  renderNotionLoading();
+  try {
+    const results = await window.api.notionSearchPages(query);
+    renderNotionResults(results || []);
+  } catch (e) {
+    console.error('Notion search failed:', e);
+    await window.api.confirmAction(
+      `Search failed: ${String(e)}`,
+      { title: 'Notion Error', kind: 'warning', okLabel: 'OK', cancelLabel: 'Dismiss' }
+    );
+  }
+}
+
+async function handleNotionSync() {
+  const tab = tabs.find(t => t.id === activeTabId);
+  if (!tab || !tab.notionPageId) return;
+  setNotionSyncBusy(true);
+  try {
+    let remote;
+    try {
+      remote = await window.api.notionPullPage(tab.notionPageId);
+    } catch (e) {
+      console.error('Notion pull failed:', e);
+      await window.api.confirmAction(
+        `Could not read remote Notion page for sync: ${String(e)}`,
+        { title: 'Sync Failed', kind: 'warning', okLabel: 'OK', cancelLabel: 'Dismiss' }
+      );
+      return;
+    }
+
+    const remoteContent = remote.content || '';
+    const baseContent = tab.notionLastSyncedContent || '';
+    const mineContent = view.state.doc.toString();
+    const remoteChanged = remoteContent !== baseContent;
+    const localChanged = mineContent !== baseContent;
+
+    if (remoteChanged && !localChanged) {
+      setActiveTabState({
+        content: remoteContent,
+        dirty: false,
+        lastSavedContent: tab.lastSavedContent || '',
+        hasExternalChange: tab.hasExternalChange || false,
+        notionLastSyncedContent: remoteContent,
+        notionHasExternalChange: false,
+        notionLastEditedTime: remote.lastEditedTime || null,
+        notionPageTitle: remote.title || tab.notionPageTitle || 'Untitled',
+      });
+      return;
+    }
+
+    if (!localChanged) {
+      tab.notionHasExternalChange = false;
+      updateNotionButtons();
+      renderTabBar();
+      scheduleSessionSave();
+      return;
+    }
+
+    if (remoteChanged) {
+      const merge = threeWayMerge(baseContent, mineContent, remoteContent);
+      tab.notionHasExternalChange = true;
+      updateNotionButtons();
+      renderTabBar();
+      scheduleSessionSave();
+
+      if (!merge.hasConflicts) {
+        try {
+          const pushed = await window.api.notionPushPage(tab.notionPageId, merge.mergedText);
+          setActiveTabState({
+            content: merge.mergedText,
+            dirty: false,
+            lastSavedContent: tab.lastSavedContent || '',
+            hasExternalChange: false,
+            notionLastSyncedContent: merge.mergedText,
+            notionHasExternalChange: false,
+            notionLastEditedTime: pushed.lastEditedTime || null,
+            notionPageTitle: pushed.title || remote.title || tab.notionPageTitle || 'Untitled',
+          });
+        } catch (e) {
+          console.error('Notion push after auto-merge failed:', e);
+          await window.api.confirmAction(
+            `Could not push merged changes to Notion: ${String(e)}`,
+            { title: 'Push Failed', kind: 'warning', okLabel: 'OK', cancelLabel: 'Dismiss' }
+          );
+        }
+        return;
+      }
+
+      const doMerge = await window.api.confirmAction(
+        'Conflicting changes were detected between local edits and Notion. Merge into the editor?',
+        { title: 'External Changes Detected', kind: 'warning', okLabel: 'Merge Changes', cancelLabel: 'More Options' }
+      );
+      if (doMerge) {
+        setActiveTabState({
+          content: merge.mergedText,
+          dirty: true,
+          lastSavedContent: tab.lastSavedContent || '',
+          hasExternalChange: tab.hasExternalChange || false,
+          notionLastSyncedContent: remoteContent,
+          notionHasExternalChange: false,
+          notionLastEditedTime: remote.lastEditedTime || null,
+          notionPageTitle: remote.title || tab.notionPageTitle || 'Untitled',
+        });
+        return;
+      }
+
+      const doOverwrite = await window.api.confirmAction(
+        'Overwrite Notion changes with your current local content?',
+        { title: 'Sync Options', kind: 'warning', okLabel: 'Overwrite', cancelLabel: 'Cancel' }
+      );
+      if (!doOverwrite) return;
+    }
+
+    try {
+      const pushed = await window.api.notionPushPage(tab.notionPageId, mineContent);
+      setActiveTabState({
+        content: mineContent,
+        dirty: false,
+        lastSavedContent: tab.lastSavedContent || '',
+        hasExternalChange: false,
+        notionLastSyncedContent: mineContent,
+        notionHasExternalChange: false,
+        notionLastEditedTime: pushed.lastEditedTime || null,
+        notionPageTitle: pushed.title || tab.notionPageTitle || 'Untitled',
+      });
+    } catch (e) {
+      console.error('Notion push failed:', e);
+      await window.api.confirmAction(
+        `Could not push changes to Notion: ${String(e)}`,
+        { title: 'Push Failed', kind: 'warning', okLabel: 'OK', cancelLabel: 'Dismiss' }
+      );
+    }
+  } finally {
+    setNotionSyncBusy(false);
+  }
+}
+
+notionCloseBtn.addEventListener('click', () => {
+  if (notionImportInProgress) return;
+  notionModal.classList.remove('visible');
+});
+notionModal.addEventListener('click', (e) => {
+  if (notionImportInProgress) return;
+  if (e.target === notionModal) notionModal.classList.remove('visible');
+});
+
+notionTokenCloseBtn.addEventListener('click', () => notionTokenModal.classList.remove('visible'));
+notionTokenModal.addEventListener('click', (e) => {
+  if (e.target === notionTokenModal) notionTokenModal.classList.remove('visible');
+});
+
+notionTokenConnectBtn.addEventListener('click', async () => {
+  const token = notionTokenInput.value.trim();
+  if (!token) return;
+  try {
+    await window.api.notionConnect(token);
+    notionTokenInput.value = '';
+    notionTokenModal.classList.remove('visible');
+    await refreshNotionAuthStatus();
+  } catch (e) {
+    console.error('Notion connect failed:', e);
+    await window.api.confirmAction(
+      `Connection failed: ${String(e)}`,
+      { title: 'Notion Error', kind: 'warning', okLabel: 'OK', cancelLabel: 'Dismiss' }
+    );
+  }
+});
+
+notionConnectCtaBtn.addEventListener('click', () => {
+  notionTokenInput.value = '';
+  notionTokenModal.classList.add('visible');
+  notionTokenInput.focus();
+});
+
+notionDisconnectBtn.addEventListener('click', async () => {
+  try {
+    await window.api.notionDisconnect();
+    await refreshNotionAuthStatus();
+    renderNotionResults([]);
+  } catch (e) {
+    console.error('Notion disconnect failed:', e);
+  }
+});
+
+notionSearchBtn.addEventListener('click', handleNotionSearch);
+notionSearchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    handleNotionSearch();
+  }
+});
+
 async function handleNew() {
   snapshotCurrentTab();
   const tab = createTab(null, '');
@@ -795,6 +1273,11 @@ async function handleOpen() {
     active.content = result.content;
     active.hasExternalChange = false;
     active.lastSavedContent = result.content;
+    active.notionPageId = null;
+    active.notionPageTitle = null;
+    active.notionLastSyncedContent = '';
+    active.notionLastEditedTime = null;
+    active.notionHasExternalChange = false;
     currentFilePath = result.filePath;
     isDirty = false;
     window.api.setDocumentEdited(false);
@@ -817,6 +1300,10 @@ async function handleOpen() {
 async function handleSave() {
   const content = view.state.doc.toString();
   const tab = tabs.find(t => t.id === activeTabId);
+  if (!currentFilePath && tab?.notionPageId) {
+    await handleNotionSync();
+    return;
+  }
   if (currentFilePath) {
     let disk = null;
     try {
@@ -953,6 +1440,11 @@ function saveSession() {
       content: t.editorState ? t.editorState.doc.toString() : (t.content || ''),
       isDirty: t.isDirty,
       hasExternalChange: Boolean(t.hasExternalChange),
+      notionPageId: t.notionPageId || null,
+      notionPageTitle: t.notionPageTitle || null,
+      notionLastSyncedContent: t.notionLastSyncedContent || '',
+      notionLastEditedTime: t.notionLastEditedTime || null,
+      notionHasExternalChange: Boolean(t.notionHasExternalChange),
       scrollTop: t.scrollTop,
       selectionMain: t.selectionMain,
       lastSavedContent: t.lastSavedContent || '',
@@ -989,6 +1481,11 @@ async function restoreSession() {
   tabs = data.tabs.map(t => ({
     ...t,
     hasExternalChange: Boolean(t.hasExternalChange),
+    notionPageId: t.notionPageId || null,
+    notionPageTitle: t.notionPageTitle || null,
+    notionLastSyncedContent: t.notionLastSyncedContent ?? '',
+    notionLastEditedTime: t.notionLastEditedTime ?? null,
+    notionHasExternalChange: Boolean(t.notionHasExternalChange),
     lastSavedContent: t.lastSavedContent ?? t.content ?? '',
   }));
   nextTabId = data.nextTabId || (Math.max(...tabs.map(t => t.id)) + 1);
@@ -1318,6 +1815,7 @@ async function startup() {
   }
 
   applyView(layoutMode, rightPaneContent);
+  await refreshNotionAuthStatus();
 
   window.api.showWindow();
 
