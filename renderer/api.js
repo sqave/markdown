@@ -17,6 +17,7 @@ window.api = {
   openFile: () => invoke('open_file'),
   saveFile: (filePath, content) => invoke('save_file', { filePath, content }),
   saveFileAs: (content) => invoke('save_file_as', { content }),
+  readFileSnapshot: (filePath) => invoke('read_file_snapshot', { filePath }),
   setTitle: (title) => invoke('set_window_title', { title }),
   setDocumentEdited: (edited) => invoke('set_document_edited', { edited }),
   openFileFolder: (filePath) => invoke('open_file_folder', { filePath }),
@@ -24,6 +25,7 @@ window.api = {
   gitShow: (filePath) => invoke('git_show', { filePath }),
   extractVsix: (vsixPath) => invoke('extract_vsix', { vsixPath }),
   confirmClose: (filename) => ask(`"${filename}" has unsaved changes. Close anyway?`, { title: 'Unsaved Changes', kind: 'warning', okLabel: 'Close', cancelLabel: 'Cancel' }),
+  confirmAction: (message, options) => ask(message, options),
 
   onMenuAction: (callback) => {
     listen('menu-action', (e) => callback(e.payload));
