@@ -8,6 +8,8 @@
 
 AGENTS.md
 
+Made a change
+
 ## Notion plugin (buggy)
 
 - Notion + local file to keep it in sync (weird, but why not)

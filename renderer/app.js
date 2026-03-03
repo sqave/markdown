@@ -725,6 +725,7 @@ function activateTab(tabId) {
   scheduleSessionSave();
   pluginBus.emit('tab:activated', { tabId });
   refreshFolderFiles().then(() => renderSidebar());
+  handleSyncCheck();
 }
 
 function createTab(filePath, content) {
@@ -866,50 +867,38 @@ function renderSidebar() {
     sidebarOpened.appendChild(item);
   });
 
-  // --- Recently Opened section ---
-  const openPaths = new Set(tabs.map(t => t.filePath).filter(Boolean));
-  const visibleRecent = recentFiles.filter(f => !openPaths.has(f)).slice(0, 5);
+  // --- Recently Opened section (just show the 5 most recent, no filtering) ---
+  sidebarRecentSection.style.display = '';
+  sidebarRecent.textContent = '';
+  recentFiles.slice(0, 5).forEach(filePath => {
+    const item = document.createElement('div');
+    item.className = 'sidebar-item';
+    item.title = filePath;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'sidebar-item-name';
+    nameSpan.textContent = filePath.split('/').pop();
+    item.appendChild(nameSpan);
+    item.addEventListener('click', () => openRecentFile(filePath));
+    sidebarRecent.appendChild(item);
+  });
 
-  if (visibleRecent.length > 0) {
-    sidebarRecentSection.style.display = '';
-    sidebarRecent.textContent = '';
-    visibleRecent.forEach(filePath => {
-      const item = document.createElement('div');
-      item.className = 'sidebar-item';
-      item.title = filePath;
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'sidebar-item-name';
-      nameSpan.textContent = filePath.split('/').pop();
-      item.appendChild(nameSpan);
-      item.addEventListener('click', () => openRecentFile(filePath));
-      sidebarRecent.appendChild(item);
-    });
-  } else {
-    sidebarRecentSection.style.display = 'none';
-  }
-
-  // --- In Folder section ---
+  // --- In Folder section (all files in folder, always) ---
   const activeTab = tabs.find(t => t.id === activeTabId);
   const activeFilePath = activeTab?.filePath;
   if (activeFilePath && folderFiles.length > 0) {
-    const filtered = folderFiles.filter(f => !openPaths.has(f.filePath));
-    if (filtered.length > 0) {
-      sidebarFolderSection.style.display = '';
-      sidebarFolder.textContent = '';
-      filtered.forEach(entry => {
-        const item = document.createElement('div');
-        item.className = 'sidebar-item';
-        item.title = entry.filePath;
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'sidebar-item-name';
-        nameSpan.textContent = entry.fileName;
-        item.appendChild(nameSpan);
-        item.addEventListener('click', () => openFolderFile(entry.filePath));
-        sidebarFolder.appendChild(item);
-      });
-    } else {
-      sidebarFolderSection.style.display = 'none';
-    }
+    sidebarFolderSection.style.display = '';
+    sidebarFolder.textContent = '';
+    folderFiles.forEach(entry => {
+      const item = document.createElement('div');
+      item.className = 'sidebar-item';
+      item.title = entry.filePath;
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'sidebar-item-name';
+      nameSpan.textContent = entry.fileName;
+      item.appendChild(nameSpan);
+      item.addEventListener('click', () => openFolderFile(entry.filePath));
+      sidebarFolder.appendChild(item);
+    });
   } else {
     sidebarFolderSection.style.display = 'none';
   }
@@ -1027,10 +1016,12 @@ async function handleSyncCheck() {
   const tab = tabs.find(t => t.id === activeTabId);
   if (!tab || !tab.filePath) return;
 
+  syncBtn.classList.add('syncing');
   let disk;
   try {
     disk = await window.api.readFileSnapshot(tab.filePath);
   } catch (e) {
+    syncBtn.classList.remove('syncing');
     console.error('Sync check failed:', e);
     await window.api.confirmAction(
       'Could not read the file from disk for sync.',
@@ -1045,6 +1036,7 @@ async function handleSyncCheck() {
 
   if (diskContent === baseContent) {
     tab.hasExternalChange = false;
+    syncBtn.classList.remove('syncing');
     updateSyncButton();
     renderSidebar();
     scheduleSessionSave();
@@ -1052,6 +1044,7 @@ async function handleSyncCheck() {
   }
 
   tab.hasExternalChange = true;
+  syncBtn.classList.remove('syncing');
   updateSyncButton();
   renderSidebar();
   scheduleSessionSave();

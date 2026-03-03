@@ -553,7 +553,6 @@ html.fullscreen .titlebar {
 
 .sidebar-section {
   flex-shrink: 0;
-  max-height: 40%;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -567,6 +566,7 @@ html.fullscreen .titlebar {
 
 .sidebar-section-opened {
   flex: 1;
+  flex-shrink: 1;
   max-height: none;
 }
 
@@ -638,6 +638,10 @@ html.fullscreen .titlebar {
 .sidebar-list {
   overflow-y: auto;
   padding: 0 6px 0;
+}
+
+#sidebarFolder {
+  max-height: 140px;
 }
 
 .sidebar-list::-webkit-scrollbar {
