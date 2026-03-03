@@ -260,6 +260,13 @@ let activeTabId = null;
 let nextTabId = 1;
 let isTabSwitching = false;
 
+// ===== Sidebar State =====
+
+let sidebarOpen = localStorage.getItem('cogmd-sidebar') !== 'closed';
+const MAX_RECENT_FILES = 20;
+let recentFiles = JSON.parse(localStorage.getItem('cogmd-recent-files') || '[]');
+let folderFiles = [];
+
 // ===== Tab LRU eviction =====
 
 const MAX_CACHED_TAB_STATES = 5;
@@ -338,7 +345,7 @@ function makeExtensions() {
         if (tab) {
           const wasDirty = tab.isDirty;
           tab.isDirty = true;
-          if (!wasDirty) renderTabBar();
+          if (!wasDirty) renderSidebar();
         }
         window.api.setDocumentEdited(true);
         updateTitle();
@@ -709,10 +716,7 @@ function activateTab(tabId) {
   } else {
     renderPreviewImmediate(content);
   }
-  renderTabBar();
-
-  const activeEl = tabBar.querySelector('.tab.active');
-  if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  renderSidebar();
 
   requestAnimationFrame(() => {
     view.scrollDOM.scrollTop = tab.scrollTop || 0;
@@ -720,6 +724,7 @@ function activateTab(tabId) {
 
   scheduleSessionSave();
   pluginBus.emit('tab:activated', { tabId });
+  refreshFolderFiles().then(() => renderSidebar());
 }
 
 function createTab(filePath, content) {
@@ -750,6 +755,7 @@ async function closeTab(tabId) {
     if (!shouldClose) return;
   }
 
+  addRecentFile(tab.filePath);
   tab.editorState = null;
 
   const idx = tabs.indexOf(tab);
@@ -766,7 +772,7 @@ async function closeTab(tabId) {
     activeTabId = null;
     activateTab(tabs[newIdx].id);
   } else {
-    renderTabBar();
+    renderSidebar();
   }
   scheduleSessionSave();
 }
@@ -778,189 +784,213 @@ function cycleTab(direction) {
   activateTab(tabs[newIdx].id);
 }
 
-// ===== Tab Bar Rendering =====
+// ===== Sidebar Rendering =====
 
-const tabBar = document.getElementById('tabBar');
-const tabNewBtn = document.getElementById('tabNewBtn');
-let draggingTabId = null;
-let dropTargetTabId = null;
-let dropPosition = null;
-let didTabDrag = false;
-let suppressTabClickUntil = 0;
+const sidebar = document.getElementById('sidebar');
+const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+const sidebarNewBtn = document.getElementById('sidebarNewBtn');
+const sidebarOpened = document.getElementById('sidebarOpened');
+const sidebarRecent = document.getElementById('sidebarRecent');
+const sidebarRecentSection = document.getElementById('sidebarRecentSection');
+const sidebarFolder = document.getElementById('sidebarFolder');
+const sidebarFolderSection = document.getElementById('sidebarFolderSection');
+const sidebarRecentHeader = document.getElementById('sidebarRecentHeader');
+const sidebarFolderHeader = document.getElementById('sidebarFolderHeader');
 
-function clearTabDropMarkers() {
-  tabBar.querySelectorAll('.tab').forEach((el) => {
-    el.classList.remove('drop-before', 'drop-after');
-  });
+sidebarRecentHeader.addEventListener('click', () => {
+  sidebarRecentSection.classList.toggle('collapsed');
+});
+sidebarFolderHeader.addEventListener('click', () => {
+  sidebarFolderSection.classList.toggle('collapsed');
+});
+
+
+function makeCloseSvg() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', '12');
+  svg.setAttribute('height', '12');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2.5');
+  svg.setAttribute('stroke-linecap', 'round');
+  const l1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  l1.setAttribute('x1', '6'); l1.setAttribute('y1', '6');
+  l1.setAttribute('x2', '18'); l1.setAttribute('y2', '18');
+  const l2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  l2.setAttribute('x1', '18'); l2.setAttribute('y1', '6');
+  l2.setAttribute('x2', '6'); l2.setAttribute('y2', '18');
+  svg.appendChild(l1);
+  svg.appendChild(l2);
+  return svg;
 }
 
-function clearTabDraggingClass() {
-  tabBar.querySelectorAll('.tab.dragging').forEach((el) => {
-    el.classList.remove('dragging');
-  });
-}
-
-function applyTabDropMarker(el, position) {
-  el.classList.remove('drop-before', 'drop-after');
-  if (position === 'before') {
-    el.classList.add('drop-before');
-  } else {
-    el.classList.add('drop-after');
-  }
-}
-
-function moveTabInArray(tabId, targetTabId, position) {
-  if (tabId === targetTabId) return false;
-  const currentOrder = tabs.map(t => t.id);
-  const order = currentOrder.filter(id => id !== tabId);
-  const targetIndex = order.indexOf(targetTabId);
-  if (targetIndex === -1) return false;
-
-  const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex;
-  order.splice(insertIndex, 0, tabId);
-
-  let changed = false;
-  for (let i = 0; i < currentOrder.length; i++) {
-    if (currentOrder[i] !== order[i]) {
-      changed = true;
-      break;
-    }
-  }
-  if (!changed) return false;
-
-  const rank = new Map(order.map((id, index) => [id, index]));
-  tabs.sort((a, b) => rank.get(a.id) - rank.get(b.id));
-  return true;
-}
-
-function renderTabBar() {
-  tabBar.querySelectorAll('.tab').forEach(el => el.remove());
+function renderSidebar() {
+  // --- Opened section ---
+  sidebarOpened.textContent = '';
 
   tabs.forEach(tab => {
-    const btn = document.createElement('button');
-    btn.className = 'tab'
+    const item = document.createElement('div');
+    item.className = 'sidebar-item'
       + (tab.id === activeTabId ? ' active' : '')
       + (tab.isDirty ? ' dirty' : '')
       + (tab.hasExternalChange ? ' remote-dirty' : '');
-    btn.dataset.tabId = tab.id;
-    btn.title = tab.filePath || getTabName(tab);
-    btn.draggable = true;
-
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'tab-name';
-    nameSpan.textContent = getTabName(tab);
-
-    pluginBus.emit('tab:render', { tab, element: btn, nameSpan });
-
-    btn.appendChild(nameSpan);
+    item.dataset.tabId = tab.id;
+    item.title = tab.filePath || getTabName(tab);
 
     const dirtyDot = document.createElement('span');
-    dirtyDot.className = 'tab-dirty';
-    btn.appendChild(dirtyDot);
+    dirtyDot.className = 'sidebar-item-dirty';
+    item.appendChild(dirtyDot);
 
     const remoteDirtyDot = document.createElement('span');
-    remoteDirtyDot.className = 'tab-remote-dirty';
-    btn.appendChild(remoteDirtyDot);
+    remoteDirtyDot.className = 'sidebar-item-remote-dirty';
+    item.appendChild(remoteDirtyDot);
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'sidebar-item-name';
+    nameSpan.textContent = getTabName(tab);
+    item.appendChild(nameSpan);
 
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'tab-close';
-    closeBtn.draggable = false;
-    const closeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    closeSvg.setAttribute('width', '14');
-    closeSvg.setAttribute('height', '14');
-    closeSvg.setAttribute('viewBox', '0 0 24 24');
-    closeSvg.setAttribute('fill', 'none');
-    closeSvg.setAttribute('stroke', 'currentColor');
-    closeSvg.setAttribute('stroke-width', '2.5');
-    closeSvg.setAttribute('stroke-linecap', 'round');
-    const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line1.setAttribute('x1', '6'); line1.setAttribute('y1', '6');
-    line1.setAttribute('x2', '18'); line1.setAttribute('y2', '18');
-    const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line2.setAttribute('x1', '18'); line2.setAttribute('y1', '6');
-    line2.setAttribute('x2', '6'); line2.setAttribute('y2', '18');
-    closeSvg.appendChild(line1);
-    closeSvg.appendChild(line2);
-    closeBtn.appendChild(closeSvg);
+    closeBtn.className = 'sidebar-item-close';
+    closeBtn.appendChild(makeCloseSvg());
     closeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       closeTab(tab.id);
     });
-    btn.appendChild(closeBtn);
+    item.appendChild(closeBtn);
 
-    btn.addEventListener('dragstart', (e) => {
-      draggingTabId = tab.id;
-      dropTargetTabId = null;
-      dropPosition = null;
-      didTabDrag = false;
-      clearTabDropMarkers();
-      clearTabDraggingClass();
-      btn.classList.add('dragging');
-      if (e.dataTransfer) {
-        e.dataTransfer.effectAllowed = 'move';
-        try {
-          e.dataTransfer.setData('text/plain', String(tab.id));
-        } catch (_) {}
-      }
-    });
-
-    btn.addEventListener('dragover', (e) => {
-      if (draggingTabId === null || draggingTabId === tab.id) return;
-      e.preventDefault();
-      didTabDrag = true;
-      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-
-      const rect = btn.getBoundingClientRect();
-      const position = (e.clientX - rect.left) < rect.width / 2 ? 'before' : 'after';
-      if (dropTargetTabId === tab.id && dropPosition === position) return;
-      dropTargetTabId = tab.id;
-      dropPosition = position;
-      clearTabDropMarkers();
-      applyTabDropMarker(btn, position);
-    });
-
-    btn.addEventListener('drop', (e) => {
-      if (draggingTabId === null || draggingTabId === tab.id) return;
-      e.preventDefault();
-
-      const rect = btn.getBoundingClientRect();
-      const position = dropPosition || ((e.clientX - rect.left) < rect.width / 2 ? 'before' : 'after');
-      const moved = moveTabInArray(draggingTabId, tab.id, position);
-      clearTabDropMarkers();
-      dropTargetTabId = null;
-      dropPosition = null;
-      if (moved) {
-        renderTabBar();
-        scheduleSessionSave();
-      }
-    });
-
-    btn.addEventListener('dragend', () => {
-      if (didTabDrag) suppressTabClickUntil = Date.now() + 200;
-      didTabDrag = false;
-      draggingTabId = null;
-      dropTargetTabId = null;
-      dropPosition = null;
-      clearTabDropMarkers();
-      clearTabDraggingClass();
-    });
-
-    btn.addEventListener('click', () => {
-      if (Date.now() < suppressTabClickUntil) return;
+    item.addEventListener('click', () => {
       activateTab(tab.id);
     });
-    tabBar.insertBefore(btn, tabNewBtn);
+    sidebarOpened.appendChild(item);
   });
+
+  // --- Recently Opened section ---
+  const openPaths = new Set(tabs.map(t => t.filePath).filter(Boolean));
+  const visibleRecent = recentFiles.filter(f => !openPaths.has(f)).slice(0, 5);
+
+  if (visibleRecent.length > 0) {
+    sidebarRecentSection.style.display = '';
+    sidebarRecent.textContent = '';
+    visibleRecent.forEach(filePath => {
+      const item = document.createElement('div');
+      item.className = 'sidebar-item';
+      item.title = filePath;
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'sidebar-item-name';
+      nameSpan.textContent = filePath.split('/').pop();
+      item.appendChild(nameSpan);
+      item.addEventListener('click', () => openRecentFile(filePath));
+      sidebarRecent.appendChild(item);
+    });
+  } else {
+    sidebarRecentSection.style.display = 'none';
+  }
+
+  // --- In Folder section ---
+  const activeTab = tabs.find(t => t.id === activeTabId);
+  const activeFilePath = activeTab?.filePath;
+  if (activeFilePath && folderFiles.length > 0) {
+    const filtered = folderFiles.filter(f => !openPaths.has(f.filePath));
+    if (filtered.length > 0) {
+      sidebarFolderSection.style.display = '';
+      sidebarFolder.textContent = '';
+      filtered.forEach(entry => {
+        const item = document.createElement('div');
+        item.className = 'sidebar-item';
+        item.title = entry.filePath;
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'sidebar-item-name';
+        nameSpan.textContent = entry.fileName;
+        item.appendChild(nameSpan);
+        item.addEventListener('click', () => openFolderFile(entry.filePath));
+        sidebarFolder.appendChild(item);
+      });
+    } else {
+      sidebarFolderSection.style.display = 'none';
+    }
+  } else {
+    sidebarFolderSection.style.display = 'none';
+  }
 }
 
-tabNewBtn.addEventListener('click', () => handleNew());
+function toggleSidebar() {
+  sidebarOpen = !sidebarOpen;
+  sidebar.classList.toggle('collapsed', !sidebarOpen);
 
-tabBar.addEventListener('wheel', (e) => {
-  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-    e.preventDefault();
-    tabBar.scrollLeft += e.deltaY;
+  localStorage.setItem('cogmd-sidebar', sidebarOpen ? 'open' : 'closed');
+}
+
+function addRecentFile(filePath) {
+  if (!filePath) return;
+  recentFiles = recentFiles.filter(f => f !== filePath);
+  recentFiles.unshift(filePath);
+  if (recentFiles.length > MAX_RECENT_FILES) recentFiles.length = MAX_RECENT_FILES;
+  localStorage.setItem('cogmd-recent-files', JSON.stringify(recentFiles));
+}
+
+async function refreshFolderFiles() {
+  const activeTab = tabs.find(t => t.id === activeTabId);
+  const filePath = activeTab?.filePath;
+  if (!filePath) {
+    folderFiles = [];
+    return;
   }
-}, { passive: false });
+  const parts = filePath.split('/');
+  parts.pop();
+  const dirPath = parts.join('/');
+  if (!dirPath) {
+    folderFiles = [];
+    return;
+  }
+  try {
+    folderFiles = await window.api.listMdFiles(dirPath);
+  } catch (e) {
+    console.error('Failed to list folder files:', e);
+    folderFiles = [];
+  }
+}
+
+async function openRecentFile(filePath) {
+  const existing = tabs.find(t => t.filePath === filePath);
+  if (existing) {
+    activateTab(existing.id);
+    return;
+  }
+  try {
+    const snapshot = await window.api.readFileSnapshot(filePath);
+    snapshotCurrentTab();
+    const tab = createTab(snapshot.filePath, snapshot.content);
+    tab.lastSavedContent = snapshot.content;
+    activateTab(tab.id);
+  } catch (e) {
+    console.error('Failed to open recent file:', e);
+    recentFiles = recentFiles.filter(f => f !== filePath);
+    localStorage.setItem('cogmd-recent-files', JSON.stringify(recentFiles));
+    renderSidebar();
+  }
+}
+
+async function openFolderFile(filePath) {
+  const existing = tabs.find(t => t.filePath === filePath);
+  if (existing) {
+    activateTab(existing.id);
+    return;
+  }
+  try {
+    const snapshot = await window.api.readFileSnapshot(filePath);
+    snapshotCurrentTab();
+    const tab = createTab(snapshot.filePath, snapshot.content);
+    tab.lastSavedContent = snapshot.content;
+    activateTab(tab.id);
+  } catch (e) {
+    console.error('Failed to open folder file:', e);
+  }
+}
+
+sidebarToggleBtn.addEventListener('click', toggleSidebar);
+sidebarNewBtn.addEventListener('click', () => handleNew());
 
 // ===== File Ops =====
 
@@ -982,7 +1012,7 @@ function setActiveTabState({
   isDirty = dirty;
   window.api.setDocumentEdited(dirty);
   updateTitle();
-  renderTabBar();
+  renderSidebar();
 
   if (layoutMode === 'split' && rightPaneContent === 'diff') {
     scheduleDiffRender();
@@ -1016,14 +1046,14 @@ async function handleSyncCheck() {
   if (diskContent === baseContent) {
     tab.hasExternalChange = false;
     updateSyncButton();
-    renderTabBar();
+    renderSidebar();
     scheduleSessionSave();
     return;
   }
 
   tab.hasExternalChange = true;
   updateSyncButton();
-  renderTabBar();
+  renderSidebar();
   scheduleSessionSave();
 
   const shouldSync = await window.api.confirmAction(
@@ -1073,7 +1103,7 @@ async function handleOpen() {
     } else {
       renderPreviewImmediate(result.content);
     }
-    renderTabBar();
+    renderSidebar();
     scheduleSessionSave();
     return;
   }
@@ -1105,7 +1135,7 @@ async function handleSave() {
       if (diskContent !== baseContent) {
         tab.hasExternalChange = true;
         updateSyncButton();
-        renderTabBar();
+        renderSidebar();
         scheduleSessionSave();
 
         const doSync = await window.api.confirmAction(
@@ -1144,7 +1174,7 @@ async function handleSave() {
     }
     window.api.setDocumentEdited(false);
     updateTitle();
-    renderTabBar();
+    renderSidebar();
     scheduleSessionSave();
   } else {
     await handleSaveAs();
@@ -1166,8 +1196,9 @@ async function handleSaveAs() {
     }
     window.api.setDocumentEdited(false);
     updateTitle();
-    renderTabBar();
+    renderSidebar();
     scheduleSessionSave();
+    refreshFolderFiles().then(() => renderSidebar());
   }
 }
 
@@ -1283,7 +1314,7 @@ async function restoreSession() {
   window.api.setDocumentEdited(isDirty);
   updateTitle();
   renderPreviewImmediate(tab.content);
-  renderTabBar();
+  renderSidebar();
   touchTab(tab.id);
 
   requestAnimationFrame(() => {
@@ -1304,6 +1335,8 @@ function resetAllSettings() {
   localStorage.removeItem('cogmd-view-mode');
   localStorage.removeItem('cogmd-divider-ratio');
   localStorage.removeItem('cogmd-session');
+  localStorage.removeItem('cogmd-sidebar');
+  localStorage.removeItem('cogmd-recent-files');
   idbSet('session', null).catch(() => {});
   location.reload();
 }
@@ -1332,6 +1365,7 @@ window.api.onMenuAction((action) => {
     case 'fontIncrease': applyFontSize(currentFontSize + 1); break;
     case 'fontDecrease': applyFontSize(currentFontSize - 1); break;
     case 'fontReset': applyFontSize(FONT_SIZE_DEFAULT); break;
+    case 'toggleSidebar': toggleSidebar(); break;
     case 'resetSettings': resetAllSettings(); break;
     case 'checkForUpdates': window.api.checkForUpdates(true); break;
     case 'managePlugins': showManagePlugins(); break;
@@ -1590,6 +1624,10 @@ performance.mark('startup-begin');
 async function startup() {
   await window.api.normalizeWebviewZoom();
 
+  // Apply initial sidebar state
+  sidebar.classList.toggle('collapsed', !sidebarOpen);
+
+
   const restored = await restoreSession();
   if (!restored) {
     const tab = createTab(null, '');
@@ -1597,8 +1635,10 @@ async function startup() {
     currentFilePath = null;
     isDirty = false;
     updateTitle();
-    renderTabBar();
+    renderSidebar();
   }
+
+  refreshFolderFiles().then(() => renderSidebar());
 
   applyView(layoutMode, rightPaneContent);
   await pluginManager.init({
@@ -1612,7 +1652,7 @@ async function startup() {
     createTab,
     snapshotCurrentTab,
     setActiveTabState,
-    renderTabBar,
+    renderSidebar,
     updateTitle,
     get activeTabId() { return activeTabId; },
     set activeTabId(val) { activeTabId = val; },

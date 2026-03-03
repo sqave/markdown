@@ -24,6 +24,7 @@ window.api = {
   getPendingFile: () => invoke('get_pending_file'),
   gitShow: (filePath) => invoke('git_show', { filePath }),
   extractVsix: (vsixPath) => invoke('extract_vsix', { vsixPath }),
+  listMdFiles: (dirPath) => invoke('list_md_files', { dirPath }),
   readPluginRegistry: () => invoke('read_plugin_registry'),
   writePluginRegistry: (data) => invoke('write_plugin_registry', { data }),
   confirmClose: (filename) => ask(`"${filename}" has unsaved changes. Close anyway?`, { title: 'Unsaved Changes', kind: 'warning', okLabel: 'Close', cancelLabel: 'Cancel' }),

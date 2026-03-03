@@ -74,6 +74,14 @@ struct NotionAuthStatus {
 }
 
 #[derive(Clone, Serialize)]
+struct MdDirEntry {
+    #[serde(rename = "fileName")]
+    file_name: String,
+    #[serde(rename = "filePath")]
+    file_path: String,
+}
+
+#[derive(Clone, Serialize)]
 struct NotionPageSummary {
     id: String,
     title: String,
@@ -245,6 +253,35 @@ fn git_show(file_path: String) -> Result<String, String> {
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+#[tauri::command]
+async fn list_md_files(dir_path: String) -> Result<Vec<MdDirEntry>, String> {
+    let entries =
+        fs::read_dir(&dir_path).map_err(|e| format!("Failed to read directory: {e}"))?;
+
+    let mut files: Vec<MdDirEntry> = entries
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
+            if !path.is_file() {
+                return None;
+            }
+            let ext = path.extension()?.to_str()?.to_lowercase();
+            if ext != "md" && ext != "markdown" {
+                return None;
+            }
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            let file_path = path.to_string_lossy().to_string();
+            Some(MdDirEntry {
+                file_name,
+                file_path,
+            })
+        })
+        .collect();
+
+    files.sort_by(|a, b| a.file_name.to_lowercase().cmp(&b.file_name.to_lowercase()));
+    Ok(files)
 }
 
 // -- VSIX extraction for plugin system --
@@ -1166,10 +1203,16 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     let view_prev_tab = MenuItemBuilder::with_id("menu_prev_tab", "Previous Tab")
         .accelerator("CmdOrCtrl+Shift+[")
         .build(app)?;
+    let view_toggle_sidebar =
+        MenuItemBuilder::with_id("menu_toggle_sidebar", "Toggle Sidebar")
+            .accelerator("CmdOrCtrl+Shift+E")
+            .build(app)?;
     let view_reset_settings =
         MenuItemBuilder::with_id("menu_reset_settings", "Reset All Settings").build(app)?;
 
     let view_menu = SubmenuBuilder::new(app, "View")
+        .item(&view_toggle_sidebar)
+        .separator()
         .item(&view_editor)
         .item(&view_split)
         .item(&view_preview)
@@ -1224,6 +1267,7 @@ fn handle_menu_event(app: &AppHandle, event: &tauri::menu::MenuEvent) {
         "menu_font_increase" => "fontIncrease",
         "menu_font_decrease" => "fontDecrease",
         "menu_font_reset" => "fontReset",
+        "menu_toggle_sidebar" => "toggleSidebar",
         "menu_reset_settings" => "resetSettings",
         "menu_plugins" => "managePlugins",
         _ => return,
@@ -1271,6 +1315,7 @@ pub fn run() {
             notion_push_page,
             read_plugin_registry,
             write_plugin_registry,
+            list_md_files,
         ])
         .setup(|app| {
             let menu = build_menu(app.handle())?;
