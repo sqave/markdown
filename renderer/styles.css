@@ -761,8 +761,8 @@ html.fullscreen .titlebar {
 
 .editor-copy-btn {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 10px;
+  right: 10px;
   z-index: 6;
 }
 
