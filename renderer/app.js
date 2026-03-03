@@ -419,6 +419,32 @@ function renderPreview(text) {
   // Use morphdom for incremental DOM updates (preserves scroll position)
   const wrapper = document.createElement('div');
   wrapper.innerHTML = cleanHtml; // Safe: content sanitized by DOMPurify above
+
+  // Convert local .md links: move href → data-href so the webview can't navigate.
+  // Also catch auto-linked bare names like "AGENTS.md" which linkify turns into
+  // "http://AGENTS.md" (because .md is Moldova's TLD).
+  wrapper.querySelectorAll('a[href]').forEach(a => {
+    const href = a.getAttribute('href');
+    if (!href || href.startsWith('#')) return;
+
+    let localPath = null;
+    const isMdExt = p => /\.(?:md|markdown)$/i.test(p);
+
+    if (/^https?:\/\//.test(href)) {
+      // Auto-linked ".md" domain — linkify made "FOO.md" into "http://FOO.md"
+      const text = a.textContent.trim();
+      if (isMdExt(text) && href === `http://${text}`) localPath = text;
+    } else if (isMdExt(href)) {
+      localPath = href;
+    }
+
+    if (localPath) {
+      a.setAttribute('data-href', localPath);
+      a.removeAttribute('href');
+      a.style.cursor = 'pointer';
+    }
+  });
+
   morphdom(previewEl, wrapper, {
     childrenOnly: true,
     onBeforeElUpdated(fromEl, toEl) {
@@ -427,6 +453,45 @@ function renderPreview(text) {
     },
   });
 }
+
+// ===== Preview link handling =====
+
+function resolveRelativePath(base, relative) {
+  const dir = base.substring(0, base.lastIndexOf('/'));
+  const parts = (dir + '/' + relative).split('/');
+  const resolved = [];
+  for (const part of parts) {
+    if (part === '..') resolved.pop();
+    else if (part !== '.' && part !== '') resolved.push(part);
+  }
+  return '/' + resolved.join('/');
+}
+
+previewEl.addEventListener('click', async (e) => {
+  const anchor = e.target.closest('a[data-href]');
+  if (!anchor) return;
+
+  const href = anchor.getAttribute('data-href');
+  if (!href || !currentFilePath) return;
+
+  const resolvedPath = resolveRelativePath(currentFilePath, href);
+
+  // If already open, just switch to it
+  const existing = tabs.find(t => t.filePath === resolvedPath);
+  if (existing) {
+    activateTab(existing.id);
+    return;
+  }
+
+  try {
+    const snapshot = await window.api.readFileSnapshot(resolvedPath);
+    snapshotCurrentTab();
+    const tab = createTab(resolvedPath, snapshot.content);
+    activateTab(tab.id);
+  } catch (err) {
+    console.warn('Could not open linked file:', resolvedPath, err);
+  }
+});
 
 // ===== Theme =====
 
@@ -1023,6 +1088,7 @@ async function handleSave() {
   const tab = tabs.find(t => t.id === activeTabId);
   if (!currentFilePath) {
     pluginBus.emit('document:save', { tab, content });
+    await handleSaveAs();
     return;
   }
   if (currentFilePath) {

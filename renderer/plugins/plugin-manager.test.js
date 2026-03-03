@@ -55,14 +55,14 @@ describe('pluginManager', () => {
     vi.clearAllMocks();
   });
 
-  it('init() — loads registry, auto-enables built-ins on first run', async () => {
+  it('init() — registers built-ins as disabled on first run', async () => {
     await pluginManager.init(mockAppBridge);
 
     expect(invoke).toHaveBeenCalledWith('read_plugin_registry');
     expect(invoke).toHaveBeenCalledWith('write_plugin_registry', expect.any(Object));
-    expect(mockActivate).toHaveBeenCalled();
-    expect(pluginManager.isActive('notion')).toBe(true);
-    expect(pluginManager.isEnabled('notion')).toBe(true);
+    expect(mockActivate).not.toHaveBeenCalled();
+    expect(pluginManager.isActive('notion')).toBe(false);
+    expect(pluginManager.isEnabled('notion')).toBe(false);
   });
 
   it('init() with existing registry — respects enabled/disabled state', async () => {

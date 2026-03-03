@@ -88,11 +88,11 @@ export const pluginManager = {
     setAppBridge(appBridge);
     await loadRegistry();
 
-    // Auto-enable built-in plugins on first run (if not in registry at all)
+    // Register built-in plugins on first run (disabled by default)
     for (const [id, builtin] of Object.entries(BUILTIN_PLUGINS)) {
       if (!(id in registry.plugins)) {
         registry.plugins[id] = {
-          enabled: true,
+          enabled: false,
           builtin: true,
           name: builtin.manifest.name,
           version: builtin.manifest.version,
