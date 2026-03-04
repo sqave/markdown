@@ -804,6 +804,10 @@ html.fullscreen .titlebar {
   margin: 0 auto;
   padding: 24px 40px 80px;
   overflow: hidden;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text-primary);
+  transition: opacity 150ms ease;
 }
 
 /* ===== Divider ===== */
@@ -867,12 +871,6 @@ html.fullscreen .titlebar {
 }
 
 /* ===== Preview Typography ===== */
-
-.preview-content {
-  font-size: 15px;
-  line-height: 1.65;
-  color: var(--text-primary);
-}
 
 .preview-content > *:first-child {
   margin-top: 0;
@@ -1038,10 +1036,6 @@ html.fullscreen .titlebar {
   padding: 16px 24px 80px;
   font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
   line-height: 1.55;
-  transition: opacity 150ms ease;
-}
-
-.preview-content {
   transition: opacity 150ms ease;
 }
 

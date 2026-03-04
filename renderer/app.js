@@ -39,32 +39,41 @@ let shikiHighlighter = null;
 let shikiReady = false;
 
 async function initShiki() {
-  const { createHighlighterCore } = await import('shiki/core');
-  const { createJavaScriptRegExpEngine } = await import('shiki/engine/javascript');
+  const [{ createHighlighterCore }, { createJavaScriptRegExpEngine }] = await Promise.all([
+    import('shiki/core'),
+    import('shiki/engine/javascript'),
+  ]);
+
+  // Load all themes and languages in parallel
+  const [themeDark, themeLight, ...langs] = await Promise.all([
+    import('shiki/dist/themes/one-dark-pro.mjs'),
+    import('shiki/dist/themes/one-light.mjs'),
+    import('shiki/dist/langs/javascript.mjs'),
+    import('shiki/dist/langs/typescript.mjs'),
+    import('shiki/dist/langs/python.mjs'),
+    import('shiki/dist/langs/html.mjs'),
+    import('shiki/dist/langs/css.mjs'),
+    import('shiki/dist/langs/json.mjs'),
+    import('shiki/dist/langs/rust.mjs'),
+    import('shiki/dist/langs/java.mjs'),
+    import('shiki/dist/langs/bash.mjs'),
+    import('shiki/dist/langs/yaml.mjs'),
+    import('shiki/dist/langs/sql.mjs'),
+    import('shiki/dist/langs/go.mjs'),
+  ]);
 
   shikiHighlighter = await createHighlighterCore({
-    themes: [import('shiki/dist/themes/one-dark-pro.mjs'), import('shiki/dist/themes/one-light.mjs')],
-    langs: [
-      import('shiki/dist/langs/javascript.mjs'),
-      import('shiki/dist/langs/typescript.mjs'),
-      import('shiki/dist/langs/python.mjs'),
-      import('shiki/dist/langs/html.mjs'),
-      import('shiki/dist/langs/css.mjs'),
-      import('shiki/dist/langs/json.mjs'),
-      import('shiki/dist/langs/rust.mjs'),
-      import('shiki/dist/langs/java.mjs'),
-      import('shiki/dist/langs/bash.mjs'),
-      import('shiki/dist/langs/yaml.mjs'),
-      import('shiki/dist/langs/sql.mjs'),
-      import('shiki/dist/langs/go.mjs'),
-    ],
+    themes: [themeDark, themeLight],
+    langs,
     engine: createJavaScriptRegExpEngine(),
   });
 
   shikiReady = true;
-  // Re-render preview with syntax highlighting now available
   schedulePreviewRender();
 }
+
+const _highlightCache = new Map();
+const _HIGHLIGHT_CACHE_MAX = 200;
 
 function shikiHighlight(str, lang) {
   if (!shikiReady || !shikiHighlighter) return '';
@@ -72,7 +81,13 @@ function shikiHighlight(str, lang) {
     const loadedLangs = shikiHighlighter.getLoadedLanguages();
     if (!loadedLangs.includes(lang)) return '';
     const theme = currentTheme === 'dark' ? 'one-dark-pro' : 'one-light';
-    return shikiHighlighter.codeToHtml(str, { lang, theme });
+    const key = `${theme}:${lang}:${str}`;
+    const cached = _highlightCache.get(key);
+    if (cached !== undefined) return cached;
+    const html = shikiHighlighter.codeToHtml(str, { lang, theme });
+    if (_highlightCache.size >= _HIGHLIGHT_CACHE_MAX) _highlightCache.clear();
+    _highlightCache.set(key, html);
+    return html;
   } catch (_) {
     return '';
   }
@@ -153,47 +168,48 @@ function makeEditorTheme(isDark) {
   }, { dark: isDark });
 }
 
+const _darkHighlightStyle = HighlightStyle.define([
+  { tag: tags.heading, fontWeight: '600', color: '#e0ddd8' },
+  { tag: tags.heading1, fontSize: '1.4em' },
+  { tag: tags.heading2, fontSize: '1.2em' },
+  { tag: tags.heading3, fontSize: '1.08em' },
+  { tag: tags.emphasis, fontStyle: 'italic', color: '#c9c5bf' },
+  { tag: tags.strong, fontWeight: '600', color: '#e0ddd8' },
+  { tag: tags.keyword, color: '#c678dd' },
+  { tag: tags.string, color: '#98c379' },
+  { tag: tags.comment, color: '#5c6370', fontStyle: 'italic' },
+  { tag: tags.number, color: '#d19a66' },
+  { tag: tags.link, color: '#43A472', textDecoration: 'underline' },
+  { tag: tags.url, color: '#43A472' },
+  { tag: tags.monospace, color: '#61afef', fontFamily: 'inherit' },
+  { tag: tags.quote, color: '#8a8680', fontStyle: 'italic' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  { tag: tags.meta, color: '#5c6370' },
+  { tag: tags.processingInstruction, color: '#5c6370' },
+]);
+
+const _lightHighlightStyle = HighlightStyle.define([
+  { tag: tags.heading, fontWeight: '600', color: '#1a1a1a' },
+  { tag: tags.heading1, fontSize: '1.4em' },
+  { tag: tags.heading2, fontSize: '1.2em' },
+  { tag: tags.heading3, fontSize: '1.08em' },
+  { tag: tags.emphasis, fontStyle: 'italic', color: '#4a4844' },
+  { tag: tags.strong, fontWeight: '600', color: '#1a1a1a' },
+  { tag: tags.keyword, color: '#a626a4' },
+  { tag: tags.string, color: '#50a14f' },
+  { tag: tags.comment, color: '#9b9690', fontStyle: 'italic' },
+  { tag: tags.number, color: '#986801' },
+  { tag: tags.link, color: '#43A472', textDecoration: 'underline' },
+  { tag: tags.url, color: '#43A472' },
+  { tag: tags.monospace, color: '#4078f2', fontFamily: 'inherit' },
+  { tag: tags.quote, color: '#6b6965', fontStyle: 'italic' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  { tag: tags.meta, color: '#9b9690' },
+  { tag: tags.processingInstruction, color: '#9b9690' },
+]);
+
 function makeHighlightStyle(isDark) {
-  if (isDark) {
-    return HighlightStyle.define([
-      { tag: tags.heading, fontWeight: '600', color: '#e0ddd8' },
-      { tag: tags.heading1, fontSize: '1.4em' },
-      { tag: tags.heading2, fontSize: '1.2em' },
-      { tag: tags.heading3, fontSize: '1.08em' },
-      { tag: tags.emphasis, fontStyle: 'italic', color: '#c9c5bf' },
-      { tag: tags.strong, fontWeight: '600', color: '#e0ddd8' },
-      { tag: tags.keyword, color: '#c678dd' },
-      { tag: tags.string, color: '#98c379' },
-      { tag: tags.comment, color: '#5c6370', fontStyle: 'italic' },
-      { tag: tags.number, color: '#d19a66' },
-      { tag: tags.link, color: '#43A472', textDecoration: 'underline' },
-      { tag: tags.url, color: '#43A472' },
-      { tag: tags.monospace, color: '#61afef', fontFamily: 'inherit' },
-      { tag: tags.quote, color: '#8a8680', fontStyle: 'italic' },
-      { tag: tags.strikethrough, textDecoration: 'line-through' },
-      { tag: tags.meta, color: '#5c6370' },
-      { tag: tags.processingInstruction, color: '#5c6370' },
-    ]);
-  }
-  return HighlightStyle.define([
-    { tag: tags.heading, fontWeight: '600', color: '#1a1a1a' },
-    { tag: tags.heading1, fontSize: '1.4em' },
-    { tag: tags.heading2, fontSize: '1.2em' },
-    { tag: tags.heading3, fontSize: '1.08em' },
-    { tag: tags.emphasis, fontStyle: 'italic', color: '#4a4844' },
-    { tag: tags.strong, fontWeight: '600', color: '#1a1a1a' },
-    { tag: tags.keyword, color: '#a626a4' },
-    { tag: tags.string, color: '#50a14f' },
-    { tag: tags.comment, color: '#9b9690', fontStyle: 'italic' },
-    { tag: tags.number, color: '#986801' },
-    { tag: tags.link, color: '#43A472', textDecoration: 'underline' },
-    { tag: tags.url, color: '#43A472' },
-    { tag: tags.monospace, color: '#4078f2', fontFamily: 'inherit' },
-    { tag: tags.quote, color: '#6b6965', fontStyle: 'italic' },
-    { tag: tags.strikethrough, textDecoration: 'line-through' },
-    { tag: tags.meta, color: '#9b9690' },
-    { tag: tags.processingInstruction, color: '#9b9690' },
-  ]);
+  return isDark ? _darkHighlightStyle : _lightHighlightStyle;
 }
 
 function getThemeExtensions(isDark) {
@@ -281,13 +297,21 @@ function touchTab(tabId) {
 function evictStaleTabStates() {
   if (tabAccessOrder.length <= MAX_CACHED_TAB_STATES) return;
   const toEvict = tabAccessOrder.slice(0, tabAccessOrder.length - MAX_CACHED_TAB_STATES);
-  for (const id of toEvict) {
-    const tab = tabs.find(t => t.id === id);
-    if (tab && tab.editorState && tab.id !== activeTabId) {
-      // Preserve content string, drop heavy EditorState
-      tab.content = tab.editorState.doc.toString();
-      tab.editorState = null;
+  if (toEvict.length === 0) return;
+  // Defer heavy toString() work to idle time to avoid blocking tab switch
+  const doEvict = () => {
+    for (const id of toEvict) {
+      const tab = tabs.find(t => t.id === id);
+      if (tab && tab.editorState && tab.id !== activeTabId) {
+        tab.content = tab.editorState.doc.toString();
+        tab.editorState = null;
+      }
     }
+  };
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(doEvict);
+  } else {
+    setTimeout(doEvict, 0);
   }
 }
 
@@ -395,21 +419,25 @@ function scheduleDiffRender() {
     if (!tab) return;
     const baseText = getDiffBase(tab);
     const currentText = view.state.doc.toString();
-    const diffEl = document.getElementById('diffContent');
-    renderDiff(currentText, baseText, diffEl);
+    renderDiff(currentText, baseText, diffContentEl);
   }, 80);
 }
 
 // Immediate preview for tab switch / file open
+let _lastPreviewText = null;
+
 function renderPreviewImmediate(text) {
   checkLargeFile(text.length);
   if (isLargeFile) {
+    _lastPreviewText = null;
     const msg = document.createElement('p');
     msg.style.cssText = 'color:var(--text-muted);font-style:italic';
     msg.textContent = 'Large file \u2014 preview on save (\u2318\u21e7R to refresh)';
     previewEl.replaceChildren(msg);
     return;
   }
+  if (text === _lastPreviewText) return;
+  _lastPreviewText = text;
   renderPreview(text);
 }
 
@@ -519,6 +547,9 @@ function applyTheme(mode) {
   view.dispatch({
     effects: themeCompartment.reconfigure(getThemeExtensions(isDark)),
   });
+  // Invalidate caches that depend on theme
+  _highlightCache.clear();
+  _lastPreviewText = null;
 }
 
 function setDisplayMenuOpen(isOpen) {
@@ -559,8 +590,10 @@ function applyFontSize(size) {
     effects: fontSizeCompartment.reconfigure(makeFontSizeTheme(currentFontSize)),
   });
   previewEl.style.fontSize = currentFontSize + 'px';
-  document.getElementById('diffContent').style.fontSize = currentFontSize + 'px';
+  diffContentEl.style.fontSize = currentFontSize + 'px';
 }
+
+const diffContentEl = document.getElementById('diffContent');
 
 document.getElementById('fontDecrease').addEventListener('click', () => {
   applyFontSize(currentFontSize - 1);
@@ -580,25 +613,21 @@ document.addEventListener('click', (event) => {
   if (!splitMenu.contains(event.target)) closeSplitMenu();
 });
 
+// Consolidated keydown handler (Escape + Cmd/Ctrl+F)
 document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape') return;
-  closeDisplayMenu();
-  closeSplitMenu();
-});
-
-// Ensure Cmd/Ctrl+F always opens CodeMirror's native search panel,
-// even when editor focus has drifted.
-document.addEventListener('keydown', (event) => {
-  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
-  if (event.key.toLowerCase() !== 'f') return;
-  event.preventDefault();
-  openSearchPanel(view);
-  view.focus();
+  if (event.key === 'Escape') {
+    closeDisplayMenu();
+    closeSplitMenu();
+  } else if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
+    event.preventDefault();
+    openSearchPanel(view);
+    view.focus();
+  }
 }, true);
 
 // Set initial preview / diff font size
 previewEl.style.fontSize = currentFontSize + 'px';
-document.getElementById('diffContent').style.fontSize = currentFontSize + 'px';
+diffContentEl.style.fontSize = currentFontSize + 'px';
 
 // ===== Copy Button =====
 
@@ -826,6 +855,29 @@ function makeCloseSvg() {
   return svg;
 }
 
+// Event delegation: single listener per sidebar list (no per-item listeners)
+sidebarOpened.addEventListener('click', (e) => {
+  const closeBtn = e.target.closest('.sidebar-item-close');
+  if (closeBtn) {
+    e.stopPropagation();
+    const item = closeBtn.closest('.sidebar-item');
+    if (item) closeTab(parseInt(item.dataset.tabId));
+    return;
+  }
+  const item = e.target.closest('.sidebar-item');
+  if (item && item.dataset.tabId) activateTab(parseInt(item.dataset.tabId));
+});
+
+sidebarRecent.addEventListener('click', (e) => {
+  const item = e.target.closest('.sidebar-item');
+  if (item && item.dataset.filePath) openRecentFile(item.dataset.filePath);
+});
+
+sidebarFolder.addEventListener('click', (e) => {
+  const item = e.target.closest('.sidebar-item');
+  if (item && item.dataset.filePath) openFolderFile(item.dataset.filePath);
+});
+
 function renderSidebar() {
   // --- Opened section ---
   sidebarOpened.textContent = '';
@@ -855,15 +907,8 @@ function renderSidebar() {
     const closeBtn = document.createElement('button');
     closeBtn.className = 'sidebar-item-close';
     closeBtn.appendChild(makeCloseSvg());
-    closeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      closeTab(tab.id);
-    });
     item.appendChild(closeBtn);
 
-    item.addEventListener('click', () => {
-      activateTab(tab.id);
-    });
     sidebarOpened.appendChild(item);
   });
 
@@ -874,11 +919,11 @@ function renderSidebar() {
     const item = document.createElement('div');
     item.className = 'sidebar-item';
     item.title = filePath;
+    item.dataset.filePath = filePath;
     const nameSpan = document.createElement('span');
     nameSpan.className = 'sidebar-item-name';
     nameSpan.textContent = filePath.split('/').pop();
     item.appendChild(nameSpan);
-    item.addEventListener('click', () => openRecentFile(filePath));
     sidebarRecent.appendChild(item);
   });
 
@@ -892,11 +937,11 @@ function renderSidebar() {
       const item = document.createElement('div');
       item.className = 'sidebar-item';
       item.title = entry.filePath;
+      item.dataset.filePath = entry.filePath;
       const nameSpan = document.createElement('span');
       nameSpan.className = 'sidebar-item-name';
       nameSpan.textContent = entry.fileName;
       item.appendChild(nameSpan);
-      item.addEventListener('click', () => openFolderFile(entry.filePath));
       sidebarFolder.appendChild(item);
     });
   } else {
@@ -1238,7 +1283,7 @@ let sessionSaveTimer = null;
 
 function scheduleSessionSave() {
   if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
-  sessionSaveTimer = setTimeout(saveSession, 2000);
+  sessionSaveTimer = setTimeout(saveSession, 5000);
 }
 
 function saveSession() {
@@ -1473,6 +1518,7 @@ const divider = document.getElementById('divider');
 const container = document.querySelector('.container');
 
 let isDragging = false;
+let _dragRaf = null;
 
 divider.addEventListener('mousedown', (e) => {
   isDragging = true;
@@ -1483,10 +1529,15 @@ divider.addEventListener('mousedown', (e) => {
 
 document.addEventListener('mousemove', (e) => {
   if (!isDragging) return;
-  const rect = container.getBoundingClientRect();
-  const ratio = (e.clientX - rect.left) / rect.width;
-  const clamped = Math.max(0.2, Math.min(0.8, ratio));
-  container.style.gridTemplateColumns = `${clamped}fr auto ${1 - clamped}fr`;
+  if (_dragRaf) return;
+  const clientX = e.clientX;
+  _dragRaf = requestAnimationFrame(() => {
+    _dragRaf = null;
+    const rect = container.getBoundingClientRect();
+    const ratio = (clientX - rect.left) / rect.width;
+    const clamped = Math.max(0.2, Math.min(0.8, ratio));
+    container.style.gridTemplateColumns = `${clamped}fr auto ${1 - clamped}fr`;
+  });
 });
 
 document.addEventListener('mouseup', () => {
@@ -1507,7 +1558,6 @@ document.addEventListener('mouseup', () => {
 // ===== View Mode System (two-dimensional: layout + right pane content) =====
 
 const previewPane = document.querySelector('.preview-pane');
-const diffContent = document.getElementById('diffContent');
 const previewContent = document.getElementById('previewContent');
 
 async function applyView(layout, rightPane) {
@@ -1547,8 +1597,8 @@ async function applyView(layout, rightPane) {
     container.style.gridTemplateColumns = '1fr';
     // Clean up diff content
     const { destroyDiff } = await import('./diff-view.js');
-    destroyDiff(diffContent);
-    diffContent.style.display = 'none';
+    destroyDiff(diffContentEl);
+    diffContentEl.style.display = 'none';
     previewContent.style.display = '';
   } else {
     // Split mode — restore saved divider ratio
@@ -1556,22 +1606,22 @@ async function applyView(layout, rightPane) {
     container.style.gridTemplateColumns = `${r}fr auto ${1 - r}fr`;
 
     if (rightPane === 'preview') {
-      diffContent.style.display = 'none';
+      diffContentEl.style.display = 'none';
       previewContent.style.display = '';
       const { destroyDiff } = await import('./diff-view.js');
-      destroyDiff(diffContent);
+      destroyDiff(diffContentEl);
       renderPreviewImmediate(view.state.doc.toString());
     } else {
       // diff
       previewContent.style.display = 'none';
-      diffContent.style.display = '';
+      diffContentEl.style.display = '';
       // Render diff
       const { renderDiff, getDiffBase } = await import('./diff-view.js');
       const tab = tabs.find(t => t.id === activeTabId);
       if (tab) {
         const baseText = getDiffBase(tab);
         const currentText = view.state.doc.toString();
-        renderDiff(currentText, baseText, diffContent);
+        renderDiff(currentText, baseText, diffContentEl);
       }
     }
   }

@@ -215,7 +215,7 @@ fn open_file_folder(file_path: String) -> Result<bool, String> {
 
 #[tauri::command]
 fn get_pending_file(state: State<AppState>) -> Option<PendingFile> {
-    state.pending_file.lock().unwrap().take()
+    state.pending_file.lock().ok().and_then(|mut g| g.take())
 }
 
 #[tauri::command]
@@ -352,9 +352,9 @@ async fn extract_vsix(app: AppHandle, vsix_path: String) -> Result<ExtensionInfo
                     if let Some(parent) = dest.parent() {
                         fs::create_dir_all(parent).ok();
                     }
-                    let mut content = Vec::new();
-                    entry.read_to_end(&mut content).ok();
-                    fs::write(&dest, &content).ok();
+                    if let Ok(mut dest_file) = fs::File::create(&dest) {
+                        std::io::copy(&mut entry, &mut dest_file).ok();
+                    }
                     themes.push(path.to_string());
                 }
             }
@@ -371,9 +371,9 @@ async fn extract_vsix(app: AppHandle, vsix_path: String) -> Result<ExtensionInfo
                     if let Some(parent) = dest.parent() {
                         fs::create_dir_all(parent).ok();
                     }
-                    let mut content = Vec::new();
-                    entry.read_to_end(&mut content).ok();
-                    fs::write(&dest, &content).ok();
+                    if let Ok(mut dest_file) = fs::File::create(&dest) {
+                        std::io::copy(&mut entry, &mut dest_file).ok();
+                    }
                     grammars.push(path.to_string());
                 }
             }
@@ -390,9 +390,9 @@ async fn extract_vsix(app: AppHandle, vsix_path: String) -> Result<ExtensionInfo
                     if let Some(parent) = dest.parent() {
                         fs::create_dir_all(parent).ok();
                     }
-                    let mut content = Vec::new();
-                    entry.read_to_end(&mut content).ok();
-                    fs::write(&dest, &content).ok();
+                    if let Ok(mut dest_file) = fs::File::create(&dest) {
+                        std::io::copy(&mut entry, &mut dest_file).ok();
+                    }
                     snippets.push(path.to_string());
                 }
             }
@@ -614,13 +614,13 @@ fn notion_auth_status(auth: Option<&NotionAuth>) -> NotionAuthStatus {
 }
 
 fn get_notion_auth(app: &AppHandle, state: &State<AppState>) -> Result<NotionAuth, String> {
-    if let Some(auth) = state.notion_auth.lock().unwrap().clone() {
+    if let Some(auth) = state.notion_auth.lock().ok().and_then(|g| g.clone()) {
         return Ok(auth);
     }
 
     let metadata = load_notion_auth_metadata_from_disk(app)?;
 
-    let env_disabled = *state.notion_env_disabled.lock().unwrap();
+    let env_disabled = state.notion_env_disabled.lock().ok().map(|g| *g).unwrap_or(false);
     let token = if env_disabled {
         None
     } else {
@@ -636,7 +636,7 @@ fn get_notion_auth(app: &AppHandle, state: &State<AppState>) -> Result<NotionAut
         workspace_name: metadata.as_ref().and_then(|m| m.workspace_name.clone()),
         bot_name: metadata.as_ref().and_then(|m| m.bot_name.clone()),
     };
-    *state.notion_auth.lock().unwrap() = Some(auth.clone());
+    if let Ok(mut g) = state.notion_auth.lock() { *g = Some(auth.clone()); }
     Ok(auth)
 }
 
@@ -728,12 +728,12 @@ fn chunk_text_for_notion(text: &str, max_chars: usize) -> Vec<String> {
         return Vec::new();
     }
     let mut chunks = Vec::new();
-    let mut current = String::new();
+    let mut current = String::with_capacity(max_chars.min(2048));
     let mut current_len = 0usize;
     for ch in text.chars() {
         if current_len >= max_chars {
             chunks.push(current);
-            current = String::new();
+            current = String::with_capacity(max_chars.min(2048));
             current_len = 0;
         }
         current.push(ch);
@@ -772,7 +772,7 @@ fn notion_block_with_text(block_type: &str, text: &str) -> serde_json::Value {
 }
 
 fn markdown_to_notion_blocks(content: &str) -> Vec<serde_json::Value> {
-    let mut blocks = Vec::new();
+    let mut blocks = Vec::with_capacity(content.lines().count() / 2 + 1);
     let mut lines = content.lines().peekable();
 
     while let Some(line) = lines.next() {
@@ -782,15 +782,15 @@ fn markdown_to_notion_blocks(content: &str) -> Vec<serde_json::Value> {
         }
 
         if let Some(code_lang) = trimmed.strip_prefix("```") {
-            let mut code_lines = Vec::new();
+            let mut code_text = String::new();
             while let Some(next_line) = lines.peek() {
                 if next_line.trim_start().starts_with("```") {
                     let _ = lines.next();
                     break;
                 }
-                code_lines.push(lines.next().unwrap_or_default().to_string());
+                if !code_text.is_empty() { code_text.push('\n'); }
+                code_text.push_str(lines.next().unwrap_or_default());
             }
-            let code_text = code_lines.join("\n");
             blocks.push(json!({
                 "object": "block",
                 "type": "code",
@@ -907,11 +907,11 @@ fn notion_blocks_to_markdown(blocks: &[serde_json::Value]) -> String {
 }
 
 fn notion_fetch_all_children(token: &str, parent_id: &str) -> Result<Vec<serde_json::Value>, String> {
-    let mut all = Vec::new();
+    let mut all = Vec::with_capacity(100);
     let mut cursor: Option<String> = None;
     loop {
         let mut path = format!("/blocks/{parent_id}/children?page_size=100");
-        if let Some(c) = cursor.clone() {
+        if let Some(ref c) = cursor {
             path.push_str("&start_cursor=");
             path.push_str(&c);
         }
@@ -988,8 +988,8 @@ async fn notion_connect(
             bot_name: auth.bot_name.clone(),
         },
     )?;
-    *state.notion_env_disabled.lock().unwrap() = false;
-    *state.notion_auth.lock().unwrap() = Some(auth.clone());
+    if let Ok(mut g) = state.notion_env_disabled.lock() { *g = false; }
+    if let Ok(mut g) = state.notion_auth.lock() { *g = Some(auth.clone()); }
     Ok(notion_auth_status(Some(&auth)))
 }
 
@@ -1000,8 +1000,8 @@ async fn notion_disconnect(app: AppHandle, state: State<'_, AppState>) -> Result
     }
     clear_notion_token_in_cogmd_env(&app)?;
     clear_notion_auth_metadata_on_disk(&app)?;
-    *state.notion_env_disabled.lock().unwrap() = true;
-    *state.notion_auth.lock().unwrap() = None;
+    if let Ok(mut g) = state.notion_env_disabled.lock() { *g = true; }
+    if let Ok(mut g) = state.notion_auth.lock() { *g = None; }
     Ok(true)
 }
 
@@ -1377,10 +1377,12 @@ pub fn run() {
                             if let Ok(content) = fs::read_to_string(&path_str) {
                                 // Always store as pending (frontend checks after startup)
                                 if let Some(state) = app.try_state::<AppState>() {
-                                    *state.pending_file.lock().unwrap() = Some(PendingFile {
-                                        file_path: path_str.clone(),
-                                        content: content.clone(),
-                                    });
+                                    if let Ok(mut g) = state.pending_file.lock() {
+                                        *g = Some(PendingFile {
+                                            file_path: path_str.clone(),
+                                            content: content.clone(),
+                                        });
+                                    }
                                 }
 
                                 // Also emit for the "app already running" case

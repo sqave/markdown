@@ -1,14 +1,10 @@
-# Features Idea for Cog Markdown
+# Features
 
-- (soon) Bug ctrl+s on untitled doesn't save as
-- (soon) Clickable links (relative to open that as tab)
-- (stuck) App icon not consistent across macs
-- (soon) Notion plugin not installed on default
+## Generic
+
+- Auto reformat / clean markdown
+- AI integration plugin (chatgpt)
 - Remote storage plugins (firestore?)
-
-AGENTS.md
-
-Made a change
 
 ## Notion plugin (buggy)
 
