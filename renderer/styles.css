@@ -100,6 +100,7 @@ html.fullscreen .titlebar {
 }
 
 .sidebar-toggle-btn {
+  -webkit-app-region: no-drag;
   background: none;
   border: none;
   cursor: pointer;
@@ -118,16 +119,6 @@ html.fullscreen .titlebar {
   background: var(--selection);
 }
 
-.editor-sidebar-toggle {
-  position: absolute;
-  top: 10px;
-  left: 4px;
-  z-index: 6;
-}
-
-.sidebar-header-toggle {
-  margin-left: auto;
-}
 
 .titlebar-btn {
   -webkit-app-region: no-drag;
@@ -612,10 +603,6 @@ html.fullscreen .titlebar {
   flex-shrink: 0;
 }
 
-.sidebar-section-opened > .sidebar-header {
-  gap: 4px;
-}
-
 .sidebar-header.collapsible {
   cursor: pointer;
   justify-content: flex-start;
@@ -795,13 +782,6 @@ html.fullscreen .titlebar {
   background: var(--bg-editor);
   position: relative;
   transition: background-color 180ms ease;
-}
-
-.editor-copy-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 6;
 }
 
 .editor-pane .cm-editor {
