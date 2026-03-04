@@ -3,8 +3,11 @@ import { build } from 'esbuild';
 const result = await build({
   entryPoints: ['renderer/app.js'],
   bundle: true,
-  outfile: 'renderer/bundle.js',
-  format: 'iife',
+  outdir: 'renderer',
+  entryNames: 'bundle',
+  chunkNames: 'chunk-[hash]',
+  format: 'esm',
+  splitting: true,
   platform: 'browser',
   target: 'safari17',
   loader: { '.js': 'js' },

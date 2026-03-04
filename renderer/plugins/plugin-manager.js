@@ -89,6 +89,7 @@ export const pluginManager = {
     await loadRegistry();
 
     // Register built-in plugins on first run (disabled by default)
+    let dirty = false;
     for (const [id, builtin] of Object.entries(BUILTIN_PLUGINS)) {
       if (!(id in registry.plugins)) {
         registry.plugins[id] = {
@@ -97,9 +98,10 @@ export const pluginManager = {
           name: builtin.manifest.name,
           version: builtin.manifest.version,
         };
+        dirty = true;
       }
     }
-    await saveRegistry();
+    if (dirty) await saveRegistry();
 
     // Load enabled built-in plugins
     for (const [id, builtin] of Object.entries(BUILTIN_PLUGINS)) {
