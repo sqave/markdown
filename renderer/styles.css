@@ -100,7 +100,6 @@ html.fullscreen .titlebar {
 }
 
 .sidebar-toggle-btn {
-  -webkit-app-region: no-drag;
   background: none;
   border: none;
   cursor: pointer;
@@ -117,6 +116,41 @@ html.fullscreen .titlebar {
 .sidebar-toggle-btn:hover {
   color: var(--text-primary);
   background: var(--selection);
+}
+
+.editor-sidebar-toggle {
+  position: absolute;
+  top: 10px;
+  left: 4px;
+  z-index: 6;
+}
+
+.sidebar-header-toggle {
+  margin-left: auto;
+}
+
+.titlebar-btn {
+  -webkit-app-region: no-drag;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 180ms ease, background-color 180ms ease;
+}
+
+.titlebar-btn:hover {
+  color: var(--text-primary);
+  background: var(--selection);
+}
+
+.titlebar-btn:active {
+  transform: scale(0.92);
 }
 
 .titlebar-actions {
@@ -576,6 +610,10 @@ html.fullscreen .titlebar {
   justify-content: space-between;
   padding: 8px 6px 4px 14px;
   flex-shrink: 0;
+}
+
+.sidebar-section-opened > .sidebar-header {
+  gap: 4px;
 }
 
 .sidebar-header.collapsible {

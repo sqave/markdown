@@ -124,7 +124,7 @@ function makeEditorTheme(isDark) {
     },
     '.cm-content': {
       fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
-      padding: '0 32px',
+      padding: '0 34px',
       caretColor: isDark ? '#e0ddd8' : '#1a1a1a',
       lineHeight: '1.6',
     },
@@ -790,6 +790,7 @@ function cycleTab(direction) {
 const sidebar = document.getElementById('sidebar');
 const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
 const sidebarNewBtn = document.getElementById('sidebarNewBtn');
+const sidebarOpenedHeader = document.querySelector('.sidebar-section-opened .sidebar-header');
 const sidebarOpened = document.getElementById('sidebarOpened');
 const sidebarRecent = document.getElementById('sidebarRecent');
 const sidebarRecentSection = document.getElementById('sidebarRecentSection');
@@ -907,8 +908,22 @@ function renderSidebar() {
 function toggleSidebar() {
   sidebarOpen = !sidebarOpen;
   sidebar.classList.toggle('collapsed', !sidebarOpen);
-
+  placeSidebarToggle();
   localStorage.setItem('cogmd-sidebar', sidebarOpen ? 'open' : 'closed');
+}
+
+function placeSidebarToggle() {
+  if (sidebarOpen) {
+    // Move into sidebar header, after the + button (rightmost)
+    sidebarOpenedHeader.appendChild(sidebarToggleBtn);
+    sidebarToggleBtn.classList.remove('editor-sidebar-toggle');
+    sidebarToggleBtn.classList.add('sidebar-header-toggle');
+  } else {
+    // Move back to editor pane
+    editorPane.insertBefore(sidebarToggleBtn, editorPane.firstChild);
+    sidebarToggleBtn.classList.remove('sidebar-header-toggle');
+    sidebarToggleBtn.classList.add('editor-sidebar-toggle');
+  }
 }
 
 function addRecentFile(filePath) {
@@ -1619,6 +1634,7 @@ async function startup() {
 
   // Apply initial sidebar state
   sidebar.classList.toggle('collapsed', !sidebarOpen);
+  placeSidebarToggle();
 
 
   const restored = await restoreSession();
