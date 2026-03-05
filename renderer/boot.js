@@ -1,1 +1,0 @@
-var e=window.__TAURI_INTERNALS__,a=e.metadata.currentWindow.label,w=e.metadata.currentWebview.label;e.invoke("plugin:webview|set_webview_zoom",{label:w,value:1});e.invoke("plugin:window|show",{label:a});import("./chunk-UVGBE25J.js");
