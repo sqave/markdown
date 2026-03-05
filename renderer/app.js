@@ -1,4 +1,5 @@
 import './api.js';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { EditorView, keymap, highlightActiveLine, drawSelection } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
@@ -485,13 +486,13 @@ function renderPreview(text) {
   const wrapper = document.createElement('div');
   wrapper.innerHTML = cleanHtml; // Safe: content sanitized by DOMPurify above
 
-  // Resolve relative image paths to asset:// URLs so local images render in preview
+  // Resolve relative image paths to asset protocol URLs so local images render in preview
   if (currentFilePath) {
     wrapper.querySelectorAll('img[src]').forEach(img => {
       const src = img.getAttribute('src');
       if (src && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('asset:')) {
         const resolved = resolveRelativePath(currentFilePath, src);
-        img.setAttribute('src', 'asset://localhost/' + encodeURI(resolved));
+        img.setAttribute('src', convertFileSrc(resolved));
       }
     });
   }
@@ -997,6 +998,27 @@ sidebarFolder.addEventListener('click', (e) => {
   if (item && item.dataset.filePath) openFolderFile(item.dataset.filePath);
 });
 
+function getParentFolder(filePath) {
+  const parts = filePath.split('/');
+  return parts.length >= 2 ? parts[parts.length - 2] : '';
+}
+
+function makePathSpan(filePath) {
+  const folder = getParentFolder(filePath);
+  if (!folder) return null;
+  const span = document.createElement('span');
+  span.className = 'sidebar-item-path';
+  span.textContent = '/ ' + folder;
+  return span;
+}
+
+function makeNameText(text) {
+  const span = document.createElement('span');
+  span.className = 'sidebar-item-name-text';
+  span.textContent = text;
+  return span;
+}
+
 function renderSidebar() {
   // --- Favorites section ---
   if (favoriteFiles.length > 0) {
@@ -1009,7 +1031,9 @@ function renderSidebar() {
       item.dataset.filePath = filePath;
       const nameSpan = document.createElement('span');
       nameSpan.className = 'sidebar-item-name';
-      nameSpan.textContent = filePath.split('/').pop();
+      nameSpan.appendChild(makeNameText(filePath.split('/').pop()));
+      const pathSpan = makePathSpan(filePath);
+      if (pathSpan) nameSpan.appendChild(pathSpan);
       item.appendChild(nameSpan);
       item.appendChild(makeStarBtn(filePath));
       sidebarFavorites.appendChild(item);
@@ -1040,7 +1064,11 @@ function renderSidebar() {
 
     const nameSpan = document.createElement('span');
     nameSpan.className = 'sidebar-item-name';
-    nameSpan.textContent = getTabName(tab);
+    nameSpan.appendChild(makeNameText(getTabName(tab)));
+    if (tab.filePath) {
+      const pathSpan = makePathSpan(tab.filePath);
+      if (pathSpan) nameSpan.appendChild(pathSpan);
+    }
     item.appendChild(nameSpan);
 
     if (tab.filePath) {
@@ -1065,7 +1093,9 @@ function renderSidebar() {
     item.dataset.filePath = filePath;
     const nameSpan = document.createElement('span');
     nameSpan.className = 'sidebar-item-name';
-    nameSpan.textContent = filePath.split('/').pop();
+    nameSpan.appendChild(makeNameText(filePath.split('/').pop()));
+    const pathSpan = makePathSpan(filePath);
+    if (pathSpan) nameSpan.appendChild(pathSpan);
     item.appendChild(nameSpan);
     item.appendChild(makeStarBtn(filePath));
     sidebarRecent.appendChild(item);
@@ -1084,7 +1114,7 @@ function renderSidebar() {
       item.dataset.filePath = entry.filePath;
       const nameSpan = document.createElement('span');
       nameSpan.className = 'sidebar-item-name';
-      nameSpan.textContent = entry.fileName;
+      nameSpan.appendChild(makeNameText(entry.fileName));
       item.appendChild(nameSpan);
       item.appendChild(makeStarBtn(entry.filePath));
       sidebarFolder.appendChild(item);

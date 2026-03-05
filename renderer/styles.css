@@ -564,7 +564,8 @@ html.fullscreen .titlebar {
   border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-bottom: 12px;
   transition: width 200ms ease, opacity 200ms ease;
 }
@@ -595,9 +596,7 @@ html.fullscreen .titlebar {
 }
 
 .sidebar-section-opened {
-  flex: 1;
-  flex-shrink: 1;
-  max-height: none;
+  flex-shrink: 0;
 }
 
 .sidebar-header {
@@ -666,23 +665,14 @@ html.fullscreen .titlebar {
 }
 
 .sidebar-list {
-  overflow-y: auto;
   padding: 0 6px 0;
 }
 
-#sidebarFavorites {
-  max-height: 140px;
-}
-
-#sidebarFolder {
-  max-height: 140px;
-}
-
-.sidebar-list::-webkit-scrollbar {
+.sidebar::-webkit-scrollbar {
   width: 4px;
 }
 
-.sidebar-list::-webkit-scrollbar-thumb {
+.sidebar::-webkit-scrollbar-thumb {
   background: var(--scrollbar);
   border-radius: 2px;
 }
@@ -717,6 +707,16 @@ html.fullscreen .titlebar {
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+  color: var(--text-muted);
+}
+
+.sidebar-item-name-text {
+  color: var(--text-secondary);
+}
+
+.sidebar-item:hover .sidebar-item-name-text,
+.sidebar-item.active .sidebar-item-name-text {
+  color: var(--text-primary);
 }
 
 .sidebar-item-dirty {
@@ -743,6 +743,16 @@ html.fullscreen .titlebar {
 
 .sidebar-item.remote-dirty .sidebar-item-remote-dirty {
   display: block;
+}
+
+.sidebar-item-path {
+  font-size: 9px;
+  margin-left: 4px;
+  pointer-events: none;
+}
+
+.sidebar-item:hover .sidebar-item-path {
+  display: none;
 }
 
 .sidebar-item-close {
