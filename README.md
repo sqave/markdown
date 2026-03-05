@@ -1,32 +1,74 @@
-# Cog
+<p align="center">
+  <img src="build/icon.png" width="128" />
+</p>
 
-A minimal markdown editor. Write, preview, done.
+<h1 align="center">Cog</h1>
 
-Cog is a native macOS app that stays out of your way. No accounts, no cloud, no bloat — just a fast editor with live preview and syntax highlighting.
+<p align="center">A fast, lightweight markdown editor for macOS. Opens instantly, stays out of your way.</p>
+
+Cog is built for people who work with markdown files daily — project docs, CLAUDE.md files, notes, READMEs, anything `.md`. No accounts, no cloud, no bloat. Just open a file and start writing.
 
 ## Install
 
-1. Download the latest `.dmg` from [Releases](https://github.com/sqave/markdown/releases), open it, and drag Cog to Applications.
+### 1. Download
 
-2. Since the app isn't signed with an Apple Developer certificate, macOS will block it on first launch (it will say its Broken or Damaged). To allow it, Open Terminal and then run:
+Go to the [Releases page](https://github.com/sqave/markdown/releases) and download the latest `.dmg` file.
+
+### 2. Install
+
+Open the downloaded `.dmg` file and drag Cog into your Applications folder.
+
+### 3. Allow the app to run
+
+Cog isn't signed with an Apple Developer certificate yet, so macOS will block it the first time you open it. You might see a message saying the app is "damaged" or "can't be opened." This is normal for unsigned apps.
+
+To fix this:
+
+1. Open the Terminal app (find it in Applications > Utilities, or press `Cmd+Space` and search for "Terminal")
+2. Paste this command and press Enter:
 
 ```sh
 xattr -cr /Applications/Cog.app
 ```
 
-If that didn't work, you might need to add `sudo` in front of the command.
+3. If that doesn't work, try adding `sudo` in front (it will ask for your Mac password):
+
+```sh
+sudo xattr -cr /Applications/Cog.app
+```
+
+4. Open Cog from your Applications folder — it should launch normally from now on.
 
 ## Features
 
-- **Split, editor, or preview** — toggle views with `Cmd+1/2/3`
-- **Tabs** — Chrome-style tabs in the titlebar, session-restored on relaunch
-- **Syntax highlighting** — CodeMirror 6 editor + Shiki preview
-- **Light and dark themes** — `Cmd+Shift+T` to toggle
-- **Adjustable font size** — `Cmd+/Cmd-` to scale
-- **Local-first** — files live on your disk, nothing phones home
-- **macOS native** — traffic lights, frameless titlebar, `.md` file associations
-- **Auto-updates** — checks GitHub Releases on launch
-- **Notion plugin (custom)** — connect via internal integration secret, search pages, link a page to a tab, and sync with merge checks
+- Split, editor, or preview — toggle with `Cmd+1` / `2` / `3`
+- Tabs in the titlebar, restored when you relaunch
+- Syntax highlighting in editor (CodeMirror 6) and preview (Shiki)
+- Light and dark themes — `Cmd+Shift+T`
+- Adjustable font size — `Cmd+` / `Cmd-`
+- Local-first — files stay on your disk, nothing phones home
+- Native macOS — traffic lights, frameless titlebar, `.md` file associations
+- Auto-updates from GitHub Releases
+
+## Keyboard shortcuts
+
+| Action | Shortcut |
+|--------|----------|
+| New tab | `Cmd+N` |
+| Open file | `Cmd+O` |
+| Save | `Cmd+S` |
+| Save as | `Cmd+Shift+S` |
+| Find | `Cmd+F` |
+| Find & Replace | `Cmd+R` |
+| Close tab | `Cmd+W` |
+| Next / prev tab | `Cmd+Shift+]` / `[` |
+| Editor only | `Cmd+1` |
+| Split view | `Cmd+2` |
+| Preview only | `Cmd+3` |
+| Toggle theme | `Cmd+Shift+T` |
+| Increase font | `Cmd+=` |
+| Decrease font | `Cmd+-` |
+| Reset font | `Cmd+0` |
 
 ## Development
 
@@ -49,41 +91,6 @@ npm run build     # production .dmg
 | Highlighting | Shiki |
 | Sanitization | DOMPurify |
 | Bundler | esbuild |
-
-## Keyboard shortcuts
-
-| Action | Shortcut |
-|--------|----------|
-| New tab | `Cmd+N` |
-| Open file | `Cmd+O` |
-| Save | `Cmd+S` |
-| Save as | `Cmd+Shift+S` |
-| Find | `Cmd+F` |
-| Find & Replace | `Cmd+R` |
-| Close tab | `Cmd+W` |
-| Next / prev tab | `Cmd+Shift+]` / `[` |
-| Editor only | `Cmd+1` |
-| Split view | `Cmd+2` |
-| Preview only | `Cmd+3` |
-| Toggle theme | `Cmd+Shift+T` |
-| Increase font | `Cmd+=` |
-| Decrease font | `Cmd+-` |
-| Reset font | `Cmd+0` |
-
-## Plugins
-
-Plugin support is a work in progress for generic VSIX plugins.
-
-This build includes a first custom plugin for Notion:
-- Open the Notion button in the titlebar.
-- Use `NOTION_TOKEN` via environment variables (for example `NOTION_TOKEN=... npm run dev`).
-- If you connect from the UI, the app stores `NOTION_TOKEN` in `~/.cogmd/.env`.
-- Search pages and click `Link` to attach a page to the current tab.
-- Use the Notion sync button (or `Cmd+S` on a linked tab) to sync.
-
-Sync behavior uses the same three-way merge style as local disk sync:
-- If Notion changed remotely since your last sync, you get a merge prompt.
-- If only local changed, you can push local edits to Notion.
 
 ## License
 

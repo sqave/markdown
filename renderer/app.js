@@ -12,9 +12,10 @@ import markdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
 import morphdom from 'morphdom';
 import { threeWayMerge } from './merge-engine.js';
-import { pluginBus } from './plugins/plugin-bus.js';
-import { pluginManager } from './plugins/plugin-manager.js';
-import { initManagePluginsButton, showManagePlugins } from './plugins/manage-plugins-ui.js';
+// [hidden] Plugin system — temporarily disabled
+// import { pluginBus } from './plugins/plugin-bus.js';
+// import { pluginManager } from './plugins/plugin-manager.js';
+// import { initManagePluginsButton, showManagePlugins } from './plugins/manage-plugins-ui.js';
 
 // ===== Performance instrumentation =====
 
@@ -309,6 +310,7 @@ let isTabSwitching = false;
 let sidebarOpen = localStorage.getItem('cogmd-sidebar') !== 'closed';
 const MAX_RECENT_FILES = 20;
 let recentFiles = JSON.parse(localStorage.getItem('cogmd-recent-files') || '[]');
+let favoriteFiles = JSON.parse(localStorage.getItem('cogmd-favorite-files') || '[]');
 let folderFiles = [];
 
 // ===== Tab LRU eviction =====
@@ -482,6 +484,17 @@ function renderPreview(text) {
   // Use morphdom for incremental DOM updates (preserves scroll position)
   const wrapper = document.createElement('div');
   wrapper.innerHTML = cleanHtml; // Safe: content sanitized by DOMPurify above
+
+  // Resolve relative image paths to asset:// URLs so local images render in preview
+  if (currentFilePath) {
+    wrapper.querySelectorAll('img[src]').forEach(img => {
+      const src = img.getAttribute('src');
+      if (src && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('asset:')) {
+        const resolved = resolveRelativePath(currentFilePath, src);
+        img.setAttribute('src', 'asset://localhost/' + encodeURI(resolved));
+      }
+    });
+  }
 
   // Convert local .md links: move href → data-href so the webview can't navigate.
   // Also catch auto-linked bare names like "AGENTS.md" which linkify turns into
@@ -780,7 +793,7 @@ function activateTab(tabId) {
   });
 
   scheduleSessionSave();
-  pluginBus.emit('tab:activated', { tabId });
+  // [hidden] pluginBus.emit('tab:activated', { tabId });
   refreshFolderFiles().then(() => renderSidebar());
   handleSyncCheck();
 }
@@ -798,7 +811,7 @@ function createTab(filePath, content) {
     lastSavedContent: content || '',
   };
   tabs.push(tab);
-  pluginBus.emit('tab:created', { tab });
+  // [hidden] pluginBus.emit('tab:created', { tab });
   return tab;
 }
 
@@ -819,7 +832,7 @@ async function closeTab(tabId) {
   const idx = tabs.indexOf(tab);
   tabs.splice(idx, 1);
   tabAccessOrder = tabAccessOrder.filter(id => id !== tabId);
-  pluginBus.emit('tab:closed', { tabId });
+  // [hidden] pluginBus.emit('tab:closed', { tabId });
 
   if (tabs.length === 0) {
     const newTab = createTab(null, '');
@@ -852,9 +865,15 @@ const sidebarRecent = document.getElementById('sidebarRecent');
 const sidebarRecentSection = document.getElementById('sidebarRecentSection');
 const sidebarFolder = document.getElementById('sidebarFolder');
 const sidebarFolderSection = document.getElementById('sidebarFolderSection');
+const sidebarFavorites = document.getElementById('sidebarFavorites');
+const sidebarFavoritesSection = document.getElementById('sidebarFavoritesSection');
+const sidebarFavoritesHeader = document.getElementById('sidebarFavoritesHeader');
 const sidebarRecentHeader = document.getElementById('sidebarRecentHeader');
 const sidebarFolderHeader = document.getElementById('sidebarFolderHeader');
 
+sidebarFavoritesHeader.addEventListener('click', () => {
+  sidebarFavoritesSection.classList.toggle('collapsed');
+});
 sidebarRecentHeader.addEventListener('click', () => {
   sidebarRecentSection.classList.toggle('collapsed');
 });
@@ -883,8 +902,63 @@ function makeCloseSvg() {
   return svg;
 }
 
+function makeStarSvg(filled) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', '12');
+  svg.setAttribute('height', '12');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', filled ? 'currentColor' : 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  p.setAttribute('points', '12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2');
+  svg.appendChild(p);
+  return svg;
+}
+
+function toggleFavorite(filePath) {
+  if (!filePath) return;
+  const idx = favoriteFiles.indexOf(filePath);
+  if (idx >= 0) {
+    favoriteFiles.splice(idx, 1);
+  } else {
+    favoriteFiles.push(filePath);
+  }
+  localStorage.setItem('cogmd-favorite-files', JSON.stringify(favoriteFiles));
+  renderSidebar();
+}
+
+function makeStarBtn(filePath) {
+  const isFav = favoriteFiles.includes(filePath);
+  const btn = document.createElement('button');
+  btn.className = 'sidebar-item-star' + (isFav ? ' favorited' : '');
+  btn.dataset.starPath = filePath;
+  btn.appendChild(makeStarSvg(isFav));
+  return btn;
+}
+
 // Event delegation: single listener per sidebar list (no per-item listeners)
+
+sidebarFavorites.addEventListener('click', (e) => {
+  const starBtn = e.target.closest('.sidebar-item-star');
+  if (starBtn) {
+    e.stopPropagation();
+    toggleFavorite(starBtn.dataset.starPath);
+    return;
+  }
+  const item = e.target.closest('.sidebar-item');
+  if (item && item.dataset.filePath) openFavoriteFile(item.dataset.filePath);
+});
+
 sidebarOpened.addEventListener('click', (e) => {
+  const starBtn = e.target.closest('.sidebar-item-star');
+  if (starBtn) {
+    e.stopPropagation();
+    toggleFavorite(starBtn.dataset.starPath);
+    return;
+  }
   const closeBtn = e.target.closest('.sidebar-item-close');
   if (closeBtn) {
     e.stopPropagation();
@@ -897,16 +971,48 @@ sidebarOpened.addEventListener('click', (e) => {
 });
 
 sidebarRecent.addEventListener('click', (e) => {
+  const starBtn = e.target.closest('.sidebar-item-star');
+  if (starBtn) {
+    e.stopPropagation();
+    toggleFavorite(starBtn.dataset.starPath);
+    return;
+  }
   const item = e.target.closest('.sidebar-item');
   if (item && item.dataset.filePath) openRecentFile(item.dataset.filePath);
 });
 
 sidebarFolder.addEventListener('click', (e) => {
+  const starBtn = e.target.closest('.sidebar-item-star');
+  if (starBtn) {
+    e.stopPropagation();
+    toggleFavorite(starBtn.dataset.starPath);
+    return;
+  }
   const item = e.target.closest('.sidebar-item');
   if (item && item.dataset.filePath) openFolderFile(item.dataset.filePath);
 });
 
 function renderSidebar() {
+  // --- Favorites section ---
+  if (favoriteFiles.length > 0) {
+    sidebarFavoritesSection.style.display = '';
+    sidebarFavorites.textContent = '';
+    favoriteFiles.forEach(filePath => {
+      const item = document.createElement('div');
+      item.className = 'sidebar-item';
+      item.title = filePath;
+      item.dataset.filePath = filePath;
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'sidebar-item-name';
+      nameSpan.textContent = filePath.split('/').pop();
+      item.appendChild(nameSpan);
+      item.appendChild(makeStarBtn(filePath));
+      sidebarFavorites.appendChild(item);
+    });
+  } else {
+    sidebarFavoritesSection.style.display = 'none';
+  }
+
   // --- Opened section ---
   sidebarOpened.textContent = '';
 
@@ -932,6 +1038,10 @@ function renderSidebar() {
     nameSpan.textContent = getTabName(tab);
     item.appendChild(nameSpan);
 
+    if (tab.filePath) {
+      item.appendChild(makeStarBtn(tab.filePath));
+    }
+
     const closeBtn = document.createElement('button');
     closeBtn.className = 'sidebar-item-close';
     closeBtn.appendChild(makeCloseSvg());
@@ -952,6 +1062,7 @@ function renderSidebar() {
     nameSpan.className = 'sidebar-item-name';
     nameSpan.textContent = filePath.split('/').pop();
     item.appendChild(nameSpan);
+    item.appendChild(makeStarBtn(filePath));
     sidebarRecent.appendChild(item);
   });
 
@@ -970,6 +1081,7 @@ function renderSidebar() {
       nameSpan.className = 'sidebar-item-name';
       nameSpan.textContent = entry.fileName;
       item.appendChild(nameSpan);
+      item.appendChild(makeStarBtn(entry.filePath));
       sidebarFolder.appendChild(item);
     });
   } else {
@@ -1029,6 +1141,26 @@ async function openRecentFile(filePath) {
     console.error('Failed to open recent file:', e);
     recentFiles = recentFiles.filter(f => f !== filePath);
     localStorage.setItem('cogmd-recent-files', JSON.stringify(recentFiles));
+    renderSidebar();
+  }
+}
+
+async function openFavoriteFile(filePath) {
+  const existing = tabs.find(t => t.filePath === filePath);
+  if (existing) {
+    activateTab(existing.id);
+    return;
+  }
+  try {
+    const snapshot = await window.api.readFileSnapshot(filePath);
+    snapshotCurrentTab();
+    const tab = createTab(snapshot.filePath, snapshot.content);
+    tab.lastSavedContent = snapshot.content;
+    activateTab(tab.id);
+  } catch (e) {
+    console.error('Failed to open favorite file:', e);
+    favoriteFiles = favoriteFiles.filter(f => f !== filePath);
+    localStorage.setItem('cogmd-favorite-files', JSON.stringify(favoriteFiles));
     renderSidebar();
   }
 }
@@ -1182,7 +1314,7 @@ async function handleSave() {
   const content = view.state.doc.toString();
   const tab = tabs.find(t => t.id === activeTabId);
   if (!currentFilePath) {
-    pluginBus.emit('document:save', { tab, content });
+    // [hidden] pluginBus.emit('document:save', { tab, content });
     await handleSaveAs();
     return;
   }
@@ -1402,6 +1534,7 @@ function resetAllSettings() {
   localStorage.removeItem('cogmd-session');
   localStorage.removeItem('cogmd-sidebar');
   localStorage.removeItem('cogmd-recent-files');
+  localStorage.removeItem('cogmd-favorite-files');
   idbSet('session', null).catch(() => {});
   location.reload();
 }
@@ -1433,7 +1566,7 @@ window.api.onMenuAction((action) => {
     case 'toggleSidebar': toggleSidebar(); break;
     case 'resetSettings': resetAllSettings(); break;
     case 'checkForUpdates': window.api.checkForUpdates(true); break;
-    case 'managePlugins': showManagePlugins(); break;
+    // [hidden] case 'managePlugins': showManagePlugins(); break;
     case 'refreshPreview': {
       const text = view.state.doc.toString();
       isLargeFile = false;
