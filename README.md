@@ -2,11 +2,11 @@
   <img src="build/icon.png" width="128" />
 </p>
 
-<h1 align="center">Cog</h1>
+<h1 align="center">Cog Markdown Editor</h1>
 
-<p align="center">A fast, lightweight markdown editor for macOS. Opens instantly, stays out of your way.</p>
+<p align="center"><i>A fast, lightweight markdown editor for macOS. Opens instantly, stays out of your way.</i></p>
 
-Cog is built for people who work with markdown files daily — project docs, CLAUDE.md files, notes, READMEs, anything `.md`. No accounts, no cloud, no bloat. Just open a file and start writing.
+Cog is built for people who work with markdown files daily - project docs, CLAUDE/AGENTS files, notes, READMEs, anything `.md`. No accounts, no cloud, no bloat. Just open a file and start writing.
 
 ## Install
 
@@ -37,17 +37,17 @@ xattr -cr /Applications/Cog.app
 sudo xattr -cr /Applications/Cog.app
 ```
 
-4. Open Cog from your Applications folder — it should launch normally from now on.
+4. Open Cog from your Applications folder - it should launch normally from now on.
 
 ## Features
 
-- Split, editor, or preview — toggle with `Cmd+1` / `2` / `3`
+- Split, editor, or preview - toggle with `Cmd+1` / `2` / `3`
 - Tabs in the titlebar, restored when you relaunch
 - Syntax highlighting in editor (CodeMirror 6) and preview (Shiki)
-- Light and dark themes — `Cmd+Shift+T`
-- Adjustable font size — `Cmd+` / `Cmd-`
-- Local-first — files stay on your disk, nothing phones home
-- Native macOS — traffic lights, frameless titlebar, `.md` file associations
+- Light and dark themes - `Cmd+Shift+T`
+- Adjustable font size - `Cmd+` / `Cmd-`
+- Local-first - files stay on your disk, nothing phones home
+- Native macOS - traffic lights, frameless titlebar, `.md` file associations
 - Auto-updates from GitHub Releases
 
 ## Keyboard shortcuts

@@ -1008,7 +1008,7 @@ function makePathSpan(filePath) {
   if (!folder) return null;
   const span = document.createElement('span');
   span.className = 'sidebar-item-path';
-  span.textContent = '/ ' + folder;
+  span.textContent = folder;
   return span;
 }
 

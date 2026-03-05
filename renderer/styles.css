@@ -702,9 +702,8 @@ html.fullscreen .titlebar {
 }
 
 .sidebar-item-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
   flex: 1;
   min-width: 0;
   color: var(--text-muted);
@@ -712,6 +711,11 @@ html.fullscreen .titlebar {
 
 .sidebar-item-name-text {
   color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+  flex-shrink: 0;
 }
 
 .sidebar-item:hover .sidebar-item-name-text,
@@ -747,8 +751,14 @@ html.fullscreen .titlebar {
 
 .sidebar-item-path {
   font-size: 9px;
-  margin-left: 4px;
   pointer-events: none;
+  margin-left: auto;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40%;
+  flex-shrink: 1;
 }
 
 .sidebar-item:hover .sidebar-item-path {
@@ -756,6 +766,10 @@ html.fullscreen .titlebar {
 }
 
 .sidebar-item-close {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 18px;
   height: 18px;
   border: none;
@@ -766,8 +780,6 @@ html.fullscreen .titlebar {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  margin-left: auto;
   opacity: 0;
   transition: opacity 150ms ease, color 150ms ease, background-color 150ms ease;
   padding: 0;
@@ -783,6 +795,10 @@ html.fullscreen .titlebar {
 }
 
 .sidebar-item-star {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 18px;
   height: 18px;
   border: none;
@@ -793,8 +809,6 @@ html.fullscreen .titlebar {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  margin-left: auto;
   opacity: 0;
   transition: opacity 150ms ease, color 150ms ease, background-color 150ms ease;
   padding: 0;
@@ -804,6 +818,10 @@ html.fullscreen .titlebar {
   opacity: 1;
 }
 
+.sidebar-item:hover .sidebar-item-star:has(+ .sidebar-item-close) {
+  right: 24px;
+}
+
 .sidebar-item-star:hover {
   color: #e8a635;
   background: var(--selection);
@@ -811,10 +829,6 @@ html.fullscreen .titlebar {
 
 .sidebar-item-star.favorited {
   color: #e8a635;
-}
-
-.sidebar-item:hover .sidebar-item-star.favorited {
-  opacity: 1;
 }
 
 .sidebar-item-star.favorited:hover {
