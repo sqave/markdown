@@ -1141,8 +1141,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     let file_open_folder = MenuItemBuilder::with_id("menu_open_folder", "Open Containing Folder")
         .accelerator("CmdOrCtrl+Shift+O")
         .build(app)?;
-    let file_plugins =
-        MenuItemBuilder::with_id("menu_plugins", "Plugins…").build(app)?;
+    // [hidden] let file_plugins =
+    //     MenuItemBuilder::with_id("menu_plugins", "Plugins…").build(app)?;
     let file_check_updates =
         MenuItemBuilder::with_id("menu_check_updates", "Check for Updates…").build(app)?;
 
@@ -1154,7 +1154,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .item(&file_save_as)
         .item(&file_open_folder)
         .separator()
-        .item(&file_plugins)
+        // [hidden] .item(&file_plugins)
         .item(&file_check_updates)
         .build()?;
 
@@ -1269,7 +1269,7 @@ fn handle_menu_event(app: &AppHandle, event: &tauri::menu::MenuEvent) {
         "menu_font_reset" => "fontReset",
         "menu_toggle_sidebar" => "toggleSidebar",
         "menu_reset_settings" => "resetSettings",
-        "menu_plugins" => "managePlugins",
+        // [hidden] "menu_plugins" => "managePlugins",
         _ => return,
     };
 

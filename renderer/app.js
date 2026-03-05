@@ -1832,31 +1832,9 @@ async function startup() {
   performance.mark('editor-ready');
   performance.measure('startup', 'startup-begin', 'editor-ready');
 
-  // Load content and plugins in parallel, after window is visible
-  const [restored] = await Promise.all([
-    restoreSession(),
-    pluginManager.init({
-      getText: () => view.state.doc.toString(),
-      setText: (text) => replaceEditorContent(text),
-      getFilePath: () => currentFilePath,
-      getActiveTab: () => tabs.find(t => t.id === activeTabId) || null,
-      getTab: (tabId) => tabs.find(t => t.id === tabId) || null,
-      scheduleSessionSave,
-      activateTab,
-      createTab,
-      snapshotCurrentTab,
-      setActiveTabState,
-      renderSidebar,
-      updateTitle,
-      get activeTabId() { return activeTabId; },
-      set activeTabId(val) { activeTabId = val; },
-      get currentFilePath() { return currentFilePath; },
-      set currentFilePath(val) { currentFilePath = val; },
-      get isDirty() { return isDirty; },
-      set isDirty(val) { isDirty = val; },
-      get tabs() { return tabs; },
-    }),
-  ]);
+  // Load content after window is visible
+  // [hidden] Plugin manager init temporarily disabled
+  const restored = await restoreSession();
 
   if (!restored) {
     const tab = createTab(null, '');
@@ -1868,7 +1846,7 @@ async function startup() {
   }
 
   refreshFolderFiles().then(() => renderSidebar());
-  initManagePluginsButton();
+  // [hidden] initManagePluginsButton();
 
   // Open any file passed via Finder "Open With" before frontend was ready
   const pending = await window.api.getPendingFile();
