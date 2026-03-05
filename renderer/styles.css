@@ -11,7 +11,7 @@
   --text-secondary: #6b6965;
   --text-muted: #9b9690;
   --border: #e8e5e0;
-  --border-subtle: #f0ede8;
+  --border-subtle: #e4e1dc;
   --accent: #43A472;
   --accent-hover: #378A5F;
   --selection: rgba(67, 164, 114, 0.12);
@@ -81,10 +81,9 @@ html, body {
   -webkit-app-region: drag;
   user-select: none;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-subtle);
   position: relative;
   z-index: 10;
-  transition: background-color 180ms ease, border-color 180ms ease;
+  transition: background-color 180ms ease;
 }
 
 html.fullscreen .titlebar {
@@ -558,10 +557,9 @@ html.fullscreen .titlebar {
 }
 
 .sidebar {
-  width: 260px;
+  width: 220px;
   flex-shrink: 0;
   background: var(--sidebar-bg);
-  border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
@@ -572,7 +570,6 @@ html.fullscreen .titlebar {
 
 .sidebar.collapsed {
   width: 0;
-  border-right: none;
   opacity: 0;
   pointer-events: none;
 }
@@ -603,7 +600,7 @@ html.fullscreen .titlebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 6px 0 14px;
+  padding: 0 12px 0 18px;
   flex-shrink: 0;
 }
 
@@ -665,7 +662,7 @@ html.fullscreen .titlebar {
 }
 
 .sidebar-list {
-  padding: 0 6px 0;
+  padding: 0 10px;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -886,7 +883,7 @@ html.fullscreen .titlebar {
 
 .divider {
   width: 1px;
-  background: var(--divider);
+  background: transparent;
   cursor: col-resize;
   position: relative;
   transition: background-color 180ms ease;
