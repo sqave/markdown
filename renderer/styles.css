@@ -585,7 +585,7 @@ html.fullscreen .titlebar {
 }
 
 .sidebar-section {
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: none;
 }
 
 .sidebar-section:last-child {
@@ -633,10 +633,8 @@ html.fullscreen .titlebar {
 
 
 .sidebar-title {
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: 11px;
+  font-weight: 400;
   color: var(--text-muted);
 }
 
@@ -748,6 +746,7 @@ html.fullscreen .titlebar {
 
 .sidebar-item-path {
   font-size: 9px;
+  font-style: italic;
   pointer-events: none;
   margin-left: auto;
   text-align: right;
