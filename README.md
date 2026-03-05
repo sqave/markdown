@@ -1,12 +1,13 @@
-<p align="center">
-  <img src="build/icon.png" width="128" />
-</p>
 
 <h1 align="center">Cog Markdown Editor</h1>
 
+<p align="center">
+  <img src="build/icon.png" width="150" />
+</p>
+
 <p align="center"><i>A fast, lightweight markdown editor for macOS. Opens instantly, stays out of your way.</i></p>
 
-Cog is built for people who work with markdown files daily - project docs, CLAUDE/AGENTS files, notes, READMEs, anything `.md`. No accounts, no cloud, no bloat. Just open a file and start writing.
+Cog is built for people who work with markdown files daily: project docs, CLAUDE/AGENTS files, notes, READMEs, anything `.md`. No accounts, no cloud, no bloat. Just open a file and start writing.
 
 ## Install
 

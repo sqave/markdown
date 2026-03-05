@@ -558,7 +558,7 @@ html.fullscreen .titlebar {
 }
 
 .sidebar {
-  width: 190px;
+  width: 260px;
   flex-shrink: 0;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border-subtle);

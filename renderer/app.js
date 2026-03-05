@@ -486,14 +486,12 @@ function renderPreview(text) {
   const wrapper = document.createElement('div');
   wrapper.innerHTML = cleanHtml; // Safe: content sanitized by DOMPurify above
 
-  // Resolve relative image paths to asset protocol URLs so local images render in preview
+  // Resolve image paths to asset protocol URLs so local images render in preview
   if (currentFilePath) {
     wrapper.querySelectorAll('img[src]').forEach(img => {
       const src = img.getAttribute('src');
-      if (src && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('asset:')) {
-        const resolved = resolveRelativePath(currentFilePath, src);
-        img.setAttribute('src', convertFileSrc(resolved));
-      }
+      const assetUrl = toAssetImageUrl(currentFilePath, src);
+      if (assetUrl) img.setAttribute('src', assetUrl);
     });
   }
 
@@ -534,14 +532,53 @@ function renderPreview(text) {
 // ===== Preview link handling =====
 
 function resolveRelativePath(base, relative) {
-  const dir = base.substring(0, base.lastIndexOf('/'));
-  const parts = (dir + '/' + relative).split('/');
+  const normalizedBase = base.replace(/\\/g, '/');
+  const normalizedRelative = relative.replace(/\\/g, '/');
+  const dir = normalizedBase.substring(0, normalizedBase.lastIndexOf('/'));
+  const joined = normalizedRelative.startsWith('/')
+    ? normalizedRelative
+    : `${dir}/${normalizedRelative}`;
+  const parts = joined.split('/');
   const resolved = [];
   for (const part of parts) {
     if (part === '..') resolved.pop();
     else if (part !== '.' && part !== '') resolved.push(part);
   }
   return '/' + resolved.join('/');
+}
+
+function splitUrlSuffix(url) {
+  const match = url.match(/^([^?#]*)([?#].*)?$/);
+  return {
+    path: match?.[1] || '',
+    suffix: match?.[2] || '',
+  };
+}
+
+function toAssetImageUrl(baseFilePath, src) {
+  if (!src) return null;
+  const value = src.trim();
+  if (!value || value.startsWith('#')) return null;
+
+  // Keep web/data/blob/asset URLs unchanged.
+  if (/^(?:https?:|data:|asset:|blob:|mailto:|tel:|javascript:|\/\/)/i.test(value)) {
+    return null;
+  }
+
+  if (value.startsWith('file://')) {
+    try {
+      const fileUrl = new URL(value);
+      return convertFileSrc(decodeURIComponent(fileUrl.pathname));
+    } catch {
+      return null;
+    }
+  }
+
+  const { path, suffix } = splitUrlSuffix(value);
+  if (!path) return null;
+
+  const resolvedPath = resolveRelativePath(baseFilePath, path);
+  return `${convertFileSrc(resolvedPath)}${suffix}`;
 }
 
 previewEl.addEventListener('click', async (e) => {

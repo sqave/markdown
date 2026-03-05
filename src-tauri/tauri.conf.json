@@ -14,6 +14,7 @@
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost https: data:",
       "assetProtocol": {
+        "enable": true,
         "scope": ["**"]
       }
     },
