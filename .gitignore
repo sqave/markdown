@@ -1,7 +1,6 @@
 node_modules/
 dist/
 .DS_Store
-renderer/bundle.js
 renderer/chunk-*.js
 src-tauri/target/
 .env

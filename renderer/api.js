@@ -2,13 +2,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { getCurrentWebview } from '@tauri-apps/api/webview';
-import { check } from '@tauri-apps/plugin-updater';
-import { ask } from '@tauri-apps/plugin-dialog';
-import { relaunch } from '@tauri-apps/plugin-process';
 
 const appWindow = getCurrentWebviewWindow();
-const appWebview = getCurrentWebview();
 
 // Track update state for the notification bar
 let pendingUpdate = null;
@@ -27,8 +22,14 @@ window.api = {
   listMdFiles: (dirPath) => invoke('list_md_files', { dirPath }),
   readPluginRegistry: () => invoke('read_plugin_registry'),
   writePluginRegistry: (data) => invoke('write_plugin_registry', { data }),
-  confirmClose: (filename) => ask(`"${filename}" has unsaved changes. Close anyway?`, { title: 'Unsaved Changes', kind: 'warning', okLabel: 'Close', cancelLabel: 'Cancel' }),
-  confirmAction: (message, options) => ask(message, options),
+  confirmClose: async (filename) => {
+    const { ask } = await import('@tauri-apps/plugin-dialog');
+    return ask(`"${filename}" has unsaved changes. Close anyway?`, { title: 'Unsaved Changes', kind: 'warning', okLabel: 'Close', cancelLabel: 'Cancel' });
+  },
+  confirmAction: async (message, options) => {
+    const { ask } = await import('@tauri-apps/plugin-dialog');
+    return ask(message, options);
+  },
 
   onMenuAction: (callback) => {
     listen('menu-action', (e) => callback(e.payload));
@@ -40,6 +41,7 @@ window.api = {
 
   checkForUpdates: async (manual = false) => {
     try {
+      const { check } = await import('@tauri-apps/plugin-updater');
       const update = await check();
       if (update) {
         pendingUpdate = update;
@@ -59,6 +61,7 @@ window.api = {
   },
 
   installUpdate: async () => {
+    const { relaunch } = await import('@tauri-apps/plugin-process');
     await relaunch();
   },
 
@@ -77,12 +80,6 @@ window.api = {
   onUpdateNone: (callback) => {
     window.addEventListener('cogmd-update-none', () => callback());
   },
-
-  normalizeWebviewZoom: async () => {
-    await appWebview.setZoom(1);
-  },
-
-  showWindow: () => appWindow.show(),
 
   onFullscreenChanged: (callback) => {
     appWindow.onResized(async () => {

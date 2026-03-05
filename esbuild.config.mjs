@@ -1,10 +1,11 @@
 import { build } from 'esbuild';
 
 const result = await build({
-  entryPoints: ['renderer/app.js'],
+  entryPoints: ['renderer/boot.js'],
   bundle: true,
   outdir: 'renderer',
-  entryNames: 'bundle',
+  entryNames: 'boot',
+  allowOverwrite: true,
   chunkNames: 'chunk-[hash]',
   format: 'esm',
   splitting: true,

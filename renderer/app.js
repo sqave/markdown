@@ -1664,14 +1664,10 @@ document.addEventListener('keydown', (e) => {
 performance.mark('startup-begin');
 
 async function startup() {
-  await window.api.normalizeWebviewZoom();
-
   // Apply initial sidebar state and layout
   sidebar.classList.toggle('collapsed', !sidebarOpen);
   applyView(layoutMode, rightPaneContent);
 
-  // Show window immediately with empty editor shell
-  window.api.showWindow();
   performance.mark('editor-ready');
   performance.measure('startup', 'startup-begin', 'editor-ready');
 

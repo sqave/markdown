@@ -3,12 +3,9 @@ import { pluginBus } from './plugin-bus.js';
 import { createPluginContext, setAppBridge } from './plugin-api.js';
 import { invoke } from '@tauri-apps/api/core';
 
-// Built-in plugin imports
-import * as notionPlugin from './builtin/notion/index.js';
-
 const BUILTIN_PLUGINS = {
   notion: {
-    module: notionPlugin,
+    load: () => import('./builtin/notion/index.js'),
     manifest: {
       id: 'notion',
       name: 'Notion',
@@ -106,7 +103,8 @@ export const pluginManager = {
     // Load enabled built-in plugins
     for (const [id, builtin] of Object.entries(BUILTIN_PLUGINS)) {
       if (isPluginEnabled(id)) {
-        await loadPlugin(id, builtin.manifest, builtin.module);
+        const module = await builtin.load();
+        await loadPlugin(id, builtin.manifest, module);
       }
     }
   },
@@ -119,7 +117,8 @@ export const pluginManager = {
     // Load built-in plugin
     if (BUILTIN_PLUGINS[id]) {
       const builtin = BUILTIN_PLUGINS[id];
-      await loadPlugin(id, builtin.manifest, builtin.module);
+      const module = await builtin.load();
+      await loadPlugin(id, builtin.manifest, module);
     }
   },
 
