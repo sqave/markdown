@@ -1,4 +1,10 @@
 import { build } from 'esbuild';
+import { unlinkSync, readdirSync } from 'fs';
+
+// Clean stale chunks from previous builds
+for (const f of readdirSync('renderer')) {
+  if (f.startsWith('chunk-') && f.endsWith('.js')) unlinkSync(`renderer/${f}`);
+}
 
 const result = await build({
   entryPoints: ['renderer/boot-src.js'],

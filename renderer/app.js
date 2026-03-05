@@ -38,38 +38,63 @@ const codeLanguages = [
 let shikiHighlighter = null;
 let shikiReady = false;
 
+const _shikiLangLoaders = {
+  javascript: () => import('shiki/dist/langs/javascript.mjs'),
+  typescript: () => import('shiki/dist/langs/typescript.mjs'),
+  python: () => import('shiki/dist/langs/python.mjs'),
+  html: () => import('shiki/dist/langs/html.mjs'),
+  css: () => import('shiki/dist/langs/css.mjs'),
+  json: () => import('shiki/dist/langs/json.mjs'),
+  rust: () => import('shiki/dist/langs/rust.mjs'),
+  java: () => import('shiki/dist/langs/java.mjs'),
+  bash: () => import('shiki/dist/langs/bash.mjs'),
+  yaml: () => import('shiki/dist/langs/yaml.mjs'),
+  sql: () => import('shiki/dist/langs/sql.mjs'),
+  go: () => import('shiki/dist/langs/go.mjs'),
+};
+// Common aliases
+_shikiLangLoaders.js = _shikiLangLoaders.javascript;
+_shikiLangLoaders.ts = _shikiLangLoaders.typescript;
+_shikiLangLoaders.py = _shikiLangLoaders.python;
+_shikiLangLoaders.sh = _shikiLangLoaders.bash;
+_shikiLangLoaders.shell = _shikiLangLoaders.bash;
+_shikiLangLoaders.yml = _shikiLangLoaders.yaml;
+_shikiLangLoaders.jsonc = _shikiLangLoaders.json;
+const _shikiLangLoading = new Set();
+
 async function initShiki() {
   const [{ createHighlighterCore }, { createJavaScriptRegExpEngine }] = await Promise.all([
     import('shiki/core'),
     import('shiki/engine/javascript'),
   ]);
 
-  // Load all themes and languages in parallel
-  const [themeDark, themeLight, ...langs] = await Promise.all([
+  const [themeDark, themeLight] = await Promise.all([
     import('shiki/dist/themes/one-dark-pro.mjs'),
     import('shiki/dist/themes/one-light.mjs'),
-    import('shiki/dist/langs/javascript.mjs'),
-    import('shiki/dist/langs/typescript.mjs'),
-    import('shiki/dist/langs/python.mjs'),
-    import('shiki/dist/langs/html.mjs'),
-    import('shiki/dist/langs/css.mjs'),
-    import('shiki/dist/langs/json.mjs'),
-    import('shiki/dist/langs/rust.mjs'),
-    import('shiki/dist/langs/java.mjs'),
-    import('shiki/dist/langs/bash.mjs'),
-    import('shiki/dist/langs/yaml.mjs'),
-    import('shiki/dist/langs/sql.mjs'),
-    import('shiki/dist/langs/go.mjs'),
   ]);
 
   shikiHighlighter = await createHighlighterCore({
     themes: [themeDark, themeLight],
-    langs,
+    langs: [],
     engine: createJavaScriptRegExpEngine(),
   });
 
   shikiReady = true;
   schedulePreviewRender();
+}
+
+async function shikiLoadLang(lang) {
+  if (_shikiLangLoading.has(lang)) return;
+  const loader = _shikiLangLoaders[lang];
+  if (!loader) return;
+  _shikiLangLoading.add(lang);
+  try {
+    const mod = await loader();
+    await shikiHighlighter.loadLanguage(mod);
+    schedulePreviewRender();
+  } catch (_) {
+    _shikiLangLoading.delete(lang);
+  }
 }
 
 const _highlightCache = new Map();
@@ -79,7 +104,10 @@ function shikiHighlight(str, lang) {
   if (!shikiReady || !shikiHighlighter) return '';
   try {
     const loadedLangs = shikiHighlighter.getLoadedLanguages();
-    if (!loadedLangs.includes(lang)) return '';
+    if (!loadedLangs.includes(lang)) {
+      shikiLoadLang(lang);
+      return '';
+    }
     const theme = currentTheme === 'dark' ? 'one-dark-pro' : 'one-light';
     const key = `${theme}:${lang}:${str}`;
     const cached = _highlightCache.get(key);
