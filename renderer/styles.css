@@ -582,11 +582,16 @@ html.fullscreen .titlebar {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  padding: 14px 0;
+  gap: 14px;
 }
 
-.sidebar-section + .sidebar-section {
-  border-top: 1px solid var(--border-subtle);
-  margin-top: 0;
+.sidebar-section {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar-section:last-child {
+  border-bottom: none;
 }
 
 .sidebar-section-opened {
@@ -599,7 +604,7 @@ html.fullscreen .titlebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 6px 10px 14px;
+  padding: 0 6px 0 14px;
   flex-shrink: 0;
 }
 
@@ -781,7 +786,7 @@ html.fullscreen .titlebar {
   flex-shrink: 0;
   margin-left: auto;
   opacity: 0;
-  transition: opacity 150ms ease, color 150ms ease;
+  transition: opacity 150ms ease, color 150ms ease, background-color 150ms ease;
   padding: 0;
 }
 
@@ -789,9 +794,21 @@ html.fullscreen .titlebar {
   opacity: 1;
 }
 
-.sidebar-item-star.favorited {
-  opacity: 1;
+.sidebar-item-star:hover {
   color: #e8a635;
+  background: var(--selection);
+}
+
+.sidebar-item-star.favorited {
+  color: #e8a635;
+}
+
+.sidebar-item:hover .sidebar-item-star.favorited {
+  opacity: 1;
+}
+
+.sidebar-item-star.favorited:hover {
+  color: var(--text-muted);
 }
 
 /* ===== Container / Split Layout ===== */

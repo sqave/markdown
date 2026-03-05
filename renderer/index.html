@@ -129,18 +129,19 @@
 
   <div class="app-body">
     <div class="sidebar" id="sidebar">
-      <div class="sidebar-section collapsed" id="sidebarFavoritesSection" style="display:none">
+      <div class="sidebar-section sidebar-section-opened" id="sidebarOpenedSection">
+        <div class="sidebar-header collapsible" id="sidebarOpenedHeader" style="display:none">
+          <span class="sidebar-title">Opened</span>
+          <svg class="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="sidebar-list" id="sidebarOpened"></div>
+      </div>
+      <div class="sidebar-section" id="sidebarFavoritesSection" style="display:none">
         <div class="sidebar-header collapsible" id="sidebarFavoritesHeader">
           <span class="sidebar-title">Favorites</span>
           <svg class="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
         <div class="sidebar-list" id="sidebarFavorites"></div>
-      </div>
-      <div class="sidebar-section sidebar-section-opened">
-        <div class="sidebar-header">
-          <span class="sidebar-title">Opened</span>
-        </div>
-        <div class="sidebar-list" id="sidebarOpened"></div>
       </div>
       <div class="sidebar-section collapsed" id="sidebarRecentSection">
         <div class="sidebar-header collapsible" id="sidebarRecentHeader">

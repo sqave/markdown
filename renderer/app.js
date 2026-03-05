@@ -868,11 +868,16 @@ const sidebarFolderSection = document.getElementById('sidebarFolderSection');
 const sidebarFavorites = document.getElementById('sidebarFavorites');
 const sidebarFavoritesSection = document.getElementById('sidebarFavoritesSection');
 const sidebarFavoritesHeader = document.getElementById('sidebarFavoritesHeader');
+const sidebarOpenedSection = document.getElementById('sidebarOpenedSection');
+const sidebarOpenedHeader = document.getElementById('sidebarOpenedHeader');
 const sidebarRecentHeader = document.getElementById('sidebarRecentHeader');
 const sidebarFolderHeader = document.getElementById('sidebarFolderHeader');
 
 sidebarFavoritesHeader.addEventListener('click', () => {
   sidebarFavoritesSection.classList.toggle('collapsed');
+});
+sidebarOpenedHeader.addEventListener('click', () => {
+  sidebarOpenedSection.classList.toggle('collapsed');
 });
 sidebarRecentHeader.addEventListener('click', () => {
   sidebarRecentSection.classList.toggle('collapsed');
