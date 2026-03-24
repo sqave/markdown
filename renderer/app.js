@@ -1518,6 +1518,14 @@ function scheduleSessionSave() {
   sessionSaveTimer = setTimeout(saveSession, 5000);
 }
 
+window.addEventListener('beforeunload', () => {
+  if (sessionSaveTimer) {
+    clearTimeout(sessionSaveTimer);
+    sessionSaveTimer = null;
+  }
+  saveSession();
+});
+
 function saveSession() {
   snapshotCurrentTab();
   const data = {
