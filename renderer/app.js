@@ -883,7 +883,7 @@ async function closeTab(tabId) {
   } else {
     renderSidebar();
   }
-  scheduleSessionSave();
+  saveSession();
 }
 
 function cycleTab(direction) {
@@ -1517,14 +1517,6 @@ function scheduleSessionSave() {
   if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
   sessionSaveTimer = setTimeout(saveSession, 5000);
 }
-
-window.addEventListener('beforeunload', () => {
-  if (sessionSaveTimer) {
-    clearTimeout(sessionSaveTimer);
-    sessionSaveTimer = null;
-  }
-  saveSession();
-});
 
 function saveSession() {
   snapshotCurrentTab();
